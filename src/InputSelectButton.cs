@@ -1,4 +1,5 @@
 ﻿using Menu;
+using Rewired;
 using RWCustom;
 using System.Text.RegularExpressions;
 using UnityEngine;
@@ -29,12 +30,12 @@ sealed class InputSelectButton : SimpleButton
     Options.ControlSetup.Preset ControllerType => ControlSetup.GetActivePreset();
 
     bool lastGamepad;
-    public bool Gamepad => CustomInputExt.UsingGamepad(ControlSetup.index);
+    public bool Gamepad => ControlSetup.gamePad;
 
     int lastPlayer;
     int Player => menu.manager.rainWorld.options.playerToSetInputFor;
 
-    public bool PlayerOneOnly => keybind.index == 0; // just pause button for now
+    public bool PlayerOneOnly => keybind == PlayerKeybind.Pause; // just pause button for now
     public bool MovementKey => keybind.index is 6 or 7 or 8 or 9;
 
     Options.ControlSetup ControlSetup => PlayerOneOnly ? menu.manager.rainWorld.options.controls[0] : menu.CurrentControlSetup;
@@ -110,34 +111,6 @@ sealed class InputSelectButton : SimpleButton
     private bool ConflictsWith(int otherPlayer)
     {
         return keybind.VisiblyConflictsWith(Player, keybind, otherPlayer);
-    }
-
-    public void InputAssigned(KeyCode keyCode)
-    {
-        string keyCodeString = keyCode.ToString();
-        if (keyCodeString.Length > 4 && keyCodeString.Substring(0, 5) == "Mouse") {
-            menu.PlaySound(SoundID.MENU_Error_Ping);
-        }
-        else if ((keyCodeString.Length > 7 && keyCodeString.Substring(0, 8) == "Joystick") != Gamepad) {
-            menu.PlaySound(SoundID.MENU_Error_Ping);
-        }
-        else {
-            if ((keyCode == KeyCode.Escape || keyCode == CurrentlyDisplayed()) && keybind.index != 0) {
-                menu.PlaySound(SoundID.MENU_Checkbox_Uncheck);
-
-                keyCode = KeyCode.None;
-            }
-            else {
-                menu.PlaySound(SoundID.MENU_Button_Successfully_Assigned);
-            }
-
-            if (Gamepad)
-                keybind.gamepad[Player] = keyCode;
-            else
-                keybind.keyboard[Player] = keyCode;
-        }
-
-        Flash();
     }
 
     public void Flash()
@@ -242,21 +215,23 @@ sealed class InputSelectButton : SimpleButton
         recentlyUsedFlash = Mathf.Max(recentlyUsedFlash, 0.65f);
 
         bool notGreyed = !(MovementKey && Gamepad || PlayerOneOnly && menu.CurrentControlSetup.index != 0);
-        if (notGreyed && Gamepad && ControlSetup.GetActivePreset() == Options.ControlSetup.Preset.None) {
+        if (!notGreyed || Gamepad && ControlSetup.GetActivePreset() == Options.ControlSetup.Preset.None) {
             arrow.alpha = 0;
             currentKey.label.alpha = 1;
             currentKey.text = "< N / A >";
             buttonColor = null;
         }
         else {
-            string text = CustomInputExt.ButtonText(Player, CurrentlyDisplayed(), out buttonColor);
+            string text = menu.ButtonText(Player, keybind, false, out buttonColor);
+            
+            //TODO rewrite this
             if (text.EndsWith("Arrow")) {
                 currentKey.label.alpha = 0;
                 arrow.alpha = 1;
                 arrow.rotation = text switch {
-                    "LArrow" => -90,
-                    "RArrow" => 90,
-                    "DownArrow" => 180,
+                    "Left Arrow" => -90,
+                    "Right Arrow" => 90,
+                    "Down Arrow" => 180,
                     _ => 0
                 };
             }
@@ -270,10 +245,43 @@ sealed class InputSelectButton : SimpleButton
 
     public override void Clicked()
     {
-        menu.mouseModeBeforeAssigningInput = menu.manager.menuesMouseMode;
-        menu.selectedObject = this;
-        menu.settingInput = new(0, keybind.index);
-        menu.PlaySound(SoundID.MENU_Button_Standard_Button_Pressed);
+        if (!menu.settingInput.HasValue)
+        {
+            menu.mouseModeBeforeAssigningInput = menu.manager.menuesMouseMode;
+            menu.settingInput = new IntVector2(Gamepad ? InputOptionsMenu.GAMEPAD_ASSIGNMENT : InputOptionsMenu.KEYBOARD_ASSIGNMENT, keybind.index);
+
+            for (int i = 0; i < menu.inputMappers.Length; i++)
+            {
+                menu.inputMappers[i].Stop();
+                menu.mappingContexts[i] = null;
+            }
+
+            for (int category = 0; category < 2; category++)
+            {
+                int action = (category == 0) ? keybind.gameAction : keybind.uiAction;
+                if (action != -1)
+                {
+                    Options.ControlSetup cs = menu.CurrentControlSetup;
+                    ControllerMap cm = ((category == 0) ? cs.gameControlMap : cs.uiControlMap);
+                    ActionElementMap ae = cs.IicGetActionElement(action, category, keybind.axisPositive);
+                    menu.mappingContexts[category] = new InputMapper.Context
+                    {
+                        actionId = action,
+                        actionRange = (keybind.axisPositive ? AxisRange.Positive : AxisRange.Negative),
+                        controllerMap = cm,
+                        actionElementMapToReplace = ae
+                    };
+                }
+            }
+
+            InputMenuHooks.remappingElementId = -1;
+            ActionElementMap aem = menu.CurrentControlSetup.IicGetActionElement(keybind.gameAction, 0, keybind.axisPositive);
+            if (aem != null)
+                InputMenuHooks.remappingElementId = aem.elementIdentifierId;
+
+            menu.startListening = true;
+            menu.PlaySound(SoundID.MENU_Button_Standard_Button_Pressed);
+        }
     }
 
     public string HoverText()

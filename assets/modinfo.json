@@ -1,10 +1,10 @@
 ﻿{
   "id": "improved-input-config",
   "name": "Improved Input Config",
-  "version": "1.5.0",
+  "version": "2.0.0",
   "target_game_version": "v1.10",
-  "authors": "Dual",
-  "description": "Doctors up the Input Settings menu and allows mods to add their own keybinds easily.<LINE><LINE>Code at github.com/Dual-Iron/improved-input-config",
+  "authors": "Dual, Zombieseatflesh7",
+  "description": "Doctors up the Input Settings menu and allows mods to add their own keybinds easily.<LINE><LINE>Rewritten for better mouse / controller support.<LINE>Made for v1.10 / The Watcher DLC",
   "requirements": [],
   "requirements_names": [],
   "tags": [

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 
 namespace ImprovedInput;
 
@@ -20,33 +19,11 @@ public sealed class CustomInput : IEquatable<CustomInput>
         }
 
         CustomInput ret = new();
+        Options.ControlSetup cs = RWCustom.Custom.rainWorld.options.controls[playerNumber];
 
-        var rw = RWCustom.Custom.rainWorld;
-        var controller = RWInput.PlayerRecentController(playerNumber);
-        rw.options.controls[playerNumber].UpdateActiveController(controller, false);
-        var controllerType = rw.options.controls[playerNumber].GetActivePreset();
-
-        bool notMultiplayer = rw.processManager == null || !rw.processManager.IsGameInMultiplayerContext();
-        if (!notMultiplayer && controllerType == Options.ControlSetup.Preset.None) {
-            return ret;
+        foreach (PlayerKeybind key in PlayerKeybind.keybinds) {
+            ret.pressed[key.index] = cs.GetButton(key.gameAction);
         }
-
-        if (notMultiplayer && controllerType == Options.ControlSetup.Preset.None) {
-            controllerType = Options.ControlSetup.Preset.KeyboardSinglePlayer;
-        }
-
-        bool gamePad = controllerType != Options.ControlSetup.Preset.KeyboardSinglePlayer;
-        if (!gamePad) {
-            foreach (var key in PlayerKeybind.keybinds) {
-                ret.pressed[key.index] = Input.GetKey(key.Keyboard(playerNumber));
-            }
-            return ret;
-        }
-
-        foreach (var key in PlayerKeybind.keybinds) {
-            ret.pressed[key.index] = CustomInputExt.ResolveButtonDown(key.Gamepad(playerNumber), controller, controllerType);
-        }
-
         return ret;
     }
 
