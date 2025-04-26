@@ -163,7 +163,8 @@ namespace ImprovedInput
 
             // saving
             string value = string.Join("|", list);
-            Plugin.Logger.LogInfo("saving controller: " + key + "\ndata: " + value);
+            Plugin.Logger.LogDebug("saving iic controller map: " + key);
+            Plugin.Logger.LogDebug("map: " + value);
             PlayerPrefs.SetString(key, value);
         }
 
@@ -194,7 +195,7 @@ namespace ImprovedInput
                     return cmap;
                 }
 
-                Plugin.Logger.LogInfo($"loading controller: " + key + "\ndata: " + value);
+                Plugin.Logger.LogDebug($"loading controller: " + key + "\ndata: " + value);
 
                 // reading unbound keybinds
                 int offset = 3;
@@ -289,9 +290,9 @@ namespace ImprovedInput
                 moddedMouseMappings.AddRange(unknownMouseButtonMappings[self]);
             if (moddedMouseMappings.Count > 0)
             {
-                Plugin.Logger.LogInfo("saving iic mouse maps for player: " + self.player.name);
+                Plugin.Logger.LogDebug("saving iic mouse maps for player: " + self.player.name);
                 string iicMouseMap = "iic:mousemaps" + "<ctrlB>" + version + "<ctrlB>" + string.Join("<ctrlB>", moddedMouseMappings);
-                Plugin.Logger.LogInfo("maps: " + iicMouseMap);
+                Plugin.Logger.LogDebug("map: " + iicMouseMap);
                 text += "<ctrlA>" + iicMouseMap;
             }
             return text;
@@ -327,8 +328,8 @@ namespace ImprovedInput
                 if (map[1] != version)
                     return;
                     
-                Plugin.Logger.LogInfo("loading iic mouse maps for player: " + self.player.name);
-                Plugin.Logger.LogInfo("maps: " + iicMapString);
+                Plugin.Logger.LogDebug("loading iic mouse map for player: " + self.player.name);
+                Plugin.Logger.LogDebug("map: " + iicMapString);
 
                 List<string> unknowns = new List<string>();
                 for (int i = 2; i < map.Length; i++)
@@ -367,6 +368,8 @@ namespace ImprovedInput
         {
             if (!hasLoadedOptions || pk.IsVanilla)
                 return;
+
+            Plugin.Logger.LogWarning($"PlayerKeybind \"{pk.Id}\" was registered late! It should be registered during OnEnable!");
 
             foreach (CmData cmapData in allControllerMapData.Values)
             {

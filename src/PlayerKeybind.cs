@@ -123,8 +123,6 @@ public sealed class PlayerKeybind
     private static PlayerKeybind Register(string id, string mod, string name, int gameAction, int uiAction = -1, bool invert = false)
     {
         PlayerKeybind k = new(id, mod, name, gameAction, uiAction, invert);
-        if (Plugin.Logger != null)
-            Plugin.Logger.LogInfo("Registered PlayerKeybind: \"" + id + "\"");
         SaveAndLoadHooks.LateLoadKeybindData(k);
         return k;
     }
@@ -132,7 +130,7 @@ public sealed class PlayerKeybind
     private static void Validate(string id, string mod, string name)
     {
         ArgumentException e = null;
-        if (string.IsNullOrWhiteSpace(id) || id.Contains("<optA>") || id.Contains("<optB>")) {
+        if (string.IsNullOrWhiteSpace(id) || id.Contains("<optA>") || id.Contains("<optB>") || id.Contains("|")) {
             e = new ArgumentException($"The keybind id \"{id}\" is invalid.");
         }
         else if (string.IsNullOrWhiteSpace(mod)) {
