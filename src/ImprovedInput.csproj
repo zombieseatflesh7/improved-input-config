@@ -16,4 +16,12 @@
 		<PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
     </ItemGroup>
 
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="Exists('$(RainWorldDir)')">
+		<ItemGroup>
+			<Assets Include="$(ProjectDir)../assets/**/*.*" />
+		</ItemGroup>
+		<Copy SourceFiles="@(Assets)" DestinationFiles="$(RainWorldDir)/RainWorld_Data/StreamingAssets/mods/$(ProjectName)/%(RecursiveDir)%(Filename)%(Extension)" />
+		<Copy SourceFiles="$(TargetDir)$(ProjectName).dll;$(TargetDir)$(ProjectName).pdb" DestinationFolder="$(RainWorldDir)/RainWorld_Data/StreamingAssets/mods/$(ProjectName)/plugins" />
+	</Target>
+
 </Project>

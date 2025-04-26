@@ -33,10 +33,6 @@ sealed class Plugin : BaseUnityPlugin
     }
     internal static readonly ConditionalWeakTable<Player, PlayerData> players = new();
 
-    internal static bool initModdedActions = false;
-    internal static List<InputAction> vanillaInputActions;
-    internal static int highestVanillaActionId;
-
     public void OnEnable()
     {
         // TODO Add `Any` controller option:
@@ -58,16 +54,16 @@ sealed class Plugin : BaseUnityPlugin
         SaveAndLoadHooks.InitHooks();
     }
 
+
     // Adding new Input Actions when the game loads (+30), and other init stuff.
+    private static bool initModdedActions = false;
+    internal static List<InputAction> vanillaInputActions;
     private static List<InputAction> UserData_GetActions_Hook(Func<UserData, List<InputAction>> orig, UserData self)
     {
         List<InputAction> actions = orig(self);
         if (!initModdedActions)
         {
             vanillaInputActions = actions;
-            foreach (InputAction inputAction in vanillaInputActions)
-                if (inputAction.id > highestVanillaActionId)
-                    highestVanillaActionId = inputAction.id;
 
             Logger.LogInfo("Adding new Input Actions");
 
@@ -81,11 +77,6 @@ sealed class Plugin : BaseUnityPlugin
             foreach (var action in actions)
                 actionsString += action.id + " ";
             Logger.LogInfo("New Input Actions " + actionsString);
-
-            // init modded keybinds
-            PlayerKeybind.addActionIds();
-
-            initModdedActions = true;
         }
         return actions;
     }

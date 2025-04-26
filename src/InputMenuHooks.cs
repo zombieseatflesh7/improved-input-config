@@ -400,8 +400,11 @@ namespace ImprovedInput
                 }
                 else
                 {
-                    string text2 = ((mc[m].actionRange == AxisRange.Positive) ? "1" : "0");
-                    cs.mouseButtonMappings[mc[m].actionId + "," + text2] = -1;
+                    if (!cs.gamePad)
+                    {
+                        string key = mc[m].actionId + "," + ((mc[m].actionRange == AxisRange.Positive) ? "1" : "0");
+                        cs.mouseButtonMappings.Remove(key);
+                    }
                     if (m == 0)
                         self.PlaySound(SoundID.MENU_Button_Successfully_Assigned);
                 }
@@ -440,12 +443,19 @@ namespace ImprovedInput
             if (message == "BIC CUSTOM PRESET")
             {
                 if (self.CurrentControlSetup.gamePad)
+                {
+                    SaveAndLoadHooks.ClearUnloadedKeys(self.CurrentControlSetup);
                     message = "GAMEPAD_DEFAULTS";
+                }
                 else
+                {
+                    SaveAndLoadHooks.ClearUnloadedKeys(self.CurrentControlSetup);
                     message = "KEYBOARD_DEFAULTS";
+                }
 
                 orig(self, sender, message);
 
+                // TODO revisit this code
                 foreach (InputSelectButton b in keybindButtons)
                 {
                     if ((!b.PlayerOneOnly || self.CurrentControlSetup.index == 0)
@@ -454,6 +464,8 @@ namespace ImprovedInput
                         b.Flash();
                     }
                 }
+
+
             }
             else
                 orig(self, sender, message);

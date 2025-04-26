@@ -31,6 +31,9 @@ namespace ImprovedInput
             On.Options.ControlSetup.ToString += ControlSetup_ToString;
             On.Options.ControlSetup.FromString += ControlSetup_FromString;
             IL.Options.ControlSetup.ToString += ControlSetup_ToStringIL;
+
+            // late loading
+            On.Options.Load += Options_Load;
         }
 
         // Preventing Rewired from saving modded actions
@@ -46,7 +49,7 @@ namespace ImprovedInput
             {
                 if (buttonMaps[i] == null)
                     offset--;
-                else if (buttonMaps[i].actionId > Plugin.highestVanillaActionId)
+                else if (buttonMaps[i].actionId > PlayerKeybind.highestVanillaActionId)
                 {
                     serializedButtonMaps.RemoveAt(i + offset);
                     offset--;
@@ -66,7 +69,7 @@ namespace ImprovedInput
             {
                 if (axisMaps[i] == null)
                     offset--;
-                else if (axisMaps[i].actionId > Plugin.highestVanillaActionId)
+                else if (axisMaps[i].actionId > PlayerKeybind.highestVanillaActionId)
                 {
                     serializedAxisMaps.RemoveAt(i + offset);
                     offset--;
@@ -91,16 +94,28 @@ namespace ImprovedInput
             return list;
         }
 
-        static readonly string version = "1.3";
+        static readonly string version = "1.5";
 
-        // remember unloaded keybinds for each controller
-        static readonly Dictionary<string, string[]> controllerUnknownUnboundKeys = new(); // TODO implement this later
-        static readonly Dictionary<string, string[][]> controllerUnknownBoundKeys = new();
-        
-        private static void RewiredUserDataStore_SaveControllerMap_Hook(Action<RewiredUserDataStore, Rewired.Player, ControllerMap> orig, RewiredUserDataStore self, Rewired.Player player, ControllerMap map)
+        private struct CmData
         {
-            orig(self, player, map);
-            if (!self.IsEnabled || map.categoryId != 0 || map.controllerType == ControllerType.Mouse)
+            public CmData(ControllerMap cmap)
+            {
+                this.cmap = cmap;
+                unbound = new List<string>();
+                bound = new List<string[]>();
+            }
+            public ControllerMap cmap { get; }
+            public List<string> unbound { get; } // unloaded, unbound keybindings
+            public List<string[]> bound { get; } // unloaded, bound keybindings - {keybind id, elementID, elementType, axisRange}
+        }
+
+        private static readonly Dictionary<string, CmData> allControllerMapData = new();
+        
+        // saving to controller map
+        private static void RewiredUserDataStore_SaveControllerMap_Hook(Action<RewiredUserDataStore, Rewired.Player, ControllerMap> orig, RewiredUserDataStore self, Rewired.Player player, ControllerMap cmap)
+        {
+            orig(self, player, cmap);
+            if (!self.IsEnabled || cmap.categoryId != 0 || cmap.controllerType == ControllerType.Mouse)
                 return;
 
             List<string> unbound = new List<string>();
@@ -110,28 +125,31 @@ namespace ImprovedInput
             List<PlayerKeybind> keybinds = PlayerKeybind.keybinds;
             for (int k = 10; k < keybinds.Count; k++)
             {
-                ActionElementMap aem = map.GetFirstElementMapWithAction(keybinds[k].gameAction);
+                ActionElementMap aem = cmap.GetFirstElementMapWithAction(keybinds[k].gameAction);
                 if (aem == null)
                 {
                     unbound.Add(keybinds[k].Id);
                 }
                 else
                 {
-                    string[] bind = new string[4];
-                    bind[0] = keybinds[k].Id;
-                    bind[1] = aem.elementIdentifierId.ToString();
-                    bind[2] = aem.elementType.ToString();
-                    bind[3] = aem.axisRange.ToString();
-                    bound.Add(bind);
+                    string[] mapping = new string[4];
+                    mapping[0] = keybinds[k].Id;
+                    mapping[1] = aem.elementIdentifierId.ToString();
+                    mapping[2] = aem.elementType.ToString();
+                    mapping[3] = aem.axisRange.ToString();
+                    bound.Add(mapping);
                 }
             }
 
             // counting unloaded keybinds
-            string key = "iic|" + self.GetControllerMapPlayerPrefsKey(player, map.controller.identifier, map.categoryId, map.layoutId, 2);
-            if (controllerUnknownBoundKeys.ContainsKey(key))
-                foreach (string[] mapping in controllerUnknownBoundKeys[key])
-                    bound.Add(mapping);
-            
+            string key = "iic|" + self.GetControllerMapPlayerPrefsKey(player, cmap.controller.identifier, cmap.categoryId, cmap.layoutId, 2);
+            CmData cmapData;
+            if (allControllerMapData.TryGetValue(key, out cmapData))
+            {
+                unbound.AddRange(cmapData.unbound);
+                bound.AddRange(cmapData.bound);
+            }
+                
             // serializing
             List<string> list = new List<string>();
             list.Add(version); // version
@@ -142,74 +160,75 @@ namespace ImprovedInput
                 list.Add(id);
             foreach (string[] mapping in bound)
                 list.AddRange(mapping);
-            
+
             // saving
             string value = string.Join("|", list);
             Plugin.Logger.LogInfo("saving controller: " + key + "\ndata: " + value);
             PlayerPrefs.SetString(key, value);
         }
 
+        // loading controller map
         private static ControllerMap RewiredUserDataStore_LoadControllerMap_Hook(Func<RewiredUserDataStore, Rewired.Player, ControllerIdentifier, int, int, ControllerMap> orig, RewiredUserDataStore self, Rewired.Player player, ControllerIdentifier controllerIdentifier, int categoryId, int layoutId)
         {
-            ControllerMap map = orig(self, player, controllerIdentifier, categoryId, layoutId);
-            if (map == null || categoryId != 0 || controllerIdentifier.controllerType == ControllerType.Mouse)
-                return map;
+            // orig / creating the map
+            ControllerMap cmap = orig(self, player, controllerIdentifier, categoryId, layoutId);
+            if (cmap == null || categoryId != 0 || controllerIdentifier.controllerType == ControllerType.Mouse || player.name == "PlayerTemplate")
+                return cmap;
 
             string key = "iic|" + self.GetControllerMapPlayerPrefsKey(player, controllerIdentifier, categoryId, layoutId, 2);
-            if (!PlayerPrefs.HasKey(key))
-                return map;
+            CmData cmapData = new CmData(cmap);
+            allControllerMapData.Remove(key);
+            allControllerMapData.Add(key, cmapData);
 
+            if (!PlayerPrefs.HasKey(key))
+                return cmap;
+
+            // interpreting string data
             try
             {
                 string value = PlayerPrefs.GetString(key);
                 string[] data = value.Split('|');
                 if (data[0] != version)
-                    return map;
+                {
+                    PlayerPrefs.DeleteKey(key);
+                    return cmap;
+                }
 
-                Plugin.Logger.LogInfo("loading controller: " + key + "\ndata: " + value);
+                Plugin.Logger.LogInfo($"loading controller: " + key + "\ndata: " + value);
 
                 // reading unbound keybinds
                 int offset = 3;
                 int numUnbound = int.Parse(data[1]);
 
                 // TODO Implement unbound keybind checking when default keybinds are reimplemented
+                    // if unbound and unloaded, add to unknowns
+                    // if unbound and loaded, ignore
 
                 // reading bound keybinds
                 offset += numUnbound;
                 int numBound = int.Parse(data[2]);
-                List<string[]> unknownBounds = new List<string[]>();
 
                 for (int i = offset; i < offset + numBound * 4; i += 4)
                 {
                     PlayerKeybind keybind = PlayerKeybind.Get(data[i]);
-                    if (keybind == null)
+                    if (keybind == null) // unloaded
                     {
-                        unknownBounds.Add(new string[] { data[i], data[i + 1], data[i + 2], data[i + 3] });
+                        cmapData.bound.Add(new string[] { data[i], data[i + 1], data[i + 2], data[i + 3] });
                         continue;
                     }
 
-                    int elementId = int.Parse(data[i + 1]);
-                    ControllerElementType type;
-                    AxisRange range;
-
-                    if (!Enum.TryParse(data[i + 2], out type) || !Enum.TryParse(data[i + 3], out range) || keybind.gameAction == -1)
-                    {
-                        Plugin.Logger.LogError("Failed to parse controller data for " + key);
-                        continue;
-                    }
-
-                    map.CreateElementMap(keybind.gameAction, Pole.Positive, elementId, type, range, false);
+                    AddControllerMapping(cmap, keybind, data[i + 1], data[i + 2], data[i + 3]);
                 }
 
-                controllerUnknownBoundKeys.Remove(key);
-                controllerUnknownBoundKeys.Add(key, unknownBounds.ToArray());
+                // if not in list, and loaded, set default
+
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
                 Plugin.Logger.LogError("Failed to parse controller data for " + key);
-                Debug.LogException(e);
+                Debug.LogException(ex);
             }
-            return map;
+            return cmap;
         }
 
         private static void ControlSetup_ToStringIL(ILContext il)
@@ -236,12 +255,12 @@ namespace ImprovedInput
             catch (Exception ex)
             {
                 Plugin.Logger.LogError("Failed to patch ControlSetup_ToString");
-                Plugin.Logger.LogError(ex.Message);
+                Debug.LogException(ex);
             }
         }
 
         private static List<string> moddedMouseMappings;
-        private static Dictionary<Options.ControlSetup, string[]> unknownMouseButtonMappings = new Dictionary<Options.ControlSetup, string[]>();
+        private static Dictionary<Options.ControlSetup, List<string>> unknownMouseButtonMappings = new Dictionary<Options.ControlSetup, List<string>>();
 
         private static string ControlSetup_WriteMouseButtonMapping(string text, KeyValuePair<string, int> mapping)
         {
@@ -254,8 +273,9 @@ namespace ImprovedInput
 
             if (keybind.IsVanilla)
                 return text + mapping.Key + ":" + mapping.Value + "<ctrlB>";
+            else if (mapping.Value != -1) // don't save unbound modded keys for mouse
+                moddedMouseMappings.Add(keybind.Id + "|" + mapping.Value);
 
-            moddedMouseMappings.Add(keybind.Id + "|" + mapping.Value);
             return text;
         }
 
@@ -303,11 +323,12 @@ namespace ImprovedInput
 
             try
             {
-                Plugin.Logger.LogInfo("loading iic mouse maps for player: " + self.player.name);
-                Plugin.Logger.LogInfo("maps: " + iicMapString);
                 string[] map = Regex.Split(iicMapString, "<ctrlB>");
                 if (map[1] != version)
                     return;
+                    
+                Plugin.Logger.LogInfo("loading iic mouse maps for player: " + self.player.name);
+                Plugin.Logger.LogInfo("maps: " + iicMapString);
 
                 List<string> unknowns = new List<string>();
                 for (int i = 2; i < map.Length; i++)
@@ -316,8 +337,7 @@ namespace ImprovedInput
                     PlayerKeybind keybind = PlayerKeybind.Get(mapping[0]);
                     if (keybind != null)
                     {
-                        string key = keybind.gameAction + "," + (keybind.axisPositive ? "1" : "0");
-                        self.mouseButtonMappings[key] = int.Parse(mapping[1]);
+                        AddMouseMapping(self, keybind, mapping[1]);
                     }
                     else
                     {
@@ -327,13 +347,106 @@ namespace ImprovedInput
 
                 unknownMouseButtonMappings.Remove(self);
                 if (unknowns.Count > 0)
-                    unknownMouseButtonMappings.Add(self, unknowns.ToArray());
+                    unknownMouseButtonMappings.Add(self, unknowns);
             }
             catch (Exception ex) 
             {
                 Plugin.Logger.LogError("Failed to parse control setup for player: " + self.player.name);
-                Plugin.Logger.LogError(ex.Message);
+                Debug.LogException(ex);
             }
+        }
+
+        private static bool hasLoadedOptions = false;
+        private static void Options_Load(On.Options.orig_Load orig, Options self)
+        {
+            orig(self);
+            hasLoadedOptions = true;
+        }
+
+        internal static void LateLoadKeybindData(PlayerKeybind pk)
+        {
+            if (!hasLoadedOptions || pk.IsVanilla)
+                return;
+
+            foreach (CmData cmapData in allControllerMapData.Values)
+            {
+                ControllerMap cmap = cmapData.cmap;
+                if (cmap.playerId >= RWCustom.Custom.rainWorld.options.controls.Length || cmap.playerId < 0) // Rewired sometimes loads maps with invalid player ids
+                {
+                    Plugin.Logger.LogError("Wrong playerId: " + cmap.playerId);
+                    continue;
+                }
+
+                bool usePreset = true;
+
+                // load controller mappings
+                for (int i = cmapData.unbound.Count - 1; i >= 0; i--)
+                    if (cmapData.unbound[i] == pk.Id)
+                    {
+                        usePreset = false;
+                        cmapData.unbound.RemoveAt(i);
+                    }
+                for (int i = cmapData.bound.Count - 1; i >= 0; i--)
+                    if (cmapData.bound[i][0] == pk.Id)
+                    {
+                        usePreset = false;
+                        string[] mapping = cmapData.bound[i];
+                        AddControllerMapping(cmap, pk, mapping[1], mapping[2], mapping[3]);
+                        cmapData.bound.RemoveAt(i);
+                    }
+
+                // load mouse mappings
+                Options.ControlSetup cs = RWCustom.Custom.rainWorld.options.controls[cmap.playerId];
+                if (cmapData.cmap.controllerType == ControllerType.Keyboard && unknownMouseButtonMappings.ContainsKey(cs))
+                {
+                    List<string> mappings = unknownMouseButtonMappings[cs];
+                    for (int i = mappings.Count - 1; i >= 0; i--)
+                    {
+                        string[] mapping = mappings[i].Split('|');
+                        if (mapping[0] == pk.Id)
+                        {
+                            usePreset = false;
+                            AddMouseMapping(cs, pk, mapping[1]);
+                            mappings.RemoveAt(i);
+                        }
+                    }
+                }
+
+                // assign preset
+                if (usePreset)
+                {
+                    // TODO assign preset
+                }
+            }
+        }
+
+        private static void AddControllerMapping(ControllerMap map, PlayerKeybind pk, string elementIdString, string elementTypeString, string axisRangeString)
+        {
+            int elementId = int.Parse(elementIdString);
+            ControllerElementType type;
+            AxisRange range;
+
+            if (!Enum.TryParse(elementTypeString, out type) || !Enum.TryParse(axisRangeString, out range))
+                return;
+
+            map.DeleteElementMapsWithAction(pk.gameAction);
+            map.CreateElementMap(pk.gameAction, Pole.Positive, elementId, type, range, false);
+        }
+    
+        private static void AddMouseMapping(Options.ControlSetup cs, PlayerKeybind pk, string mouseButton)
+        {
+            string key = pk.gameAction + "," + (pk.axisPositive ? "1" : "0");
+            cs.mouseButtonMappings[key] = int.Parse(mouseButton);
+        }
+    
+        internal static void ClearUnloadedKeys(Options.ControlSetup cs)
+        {
+            if (!cs.gamePad)
+                unknownMouseButtonMappings.Remove(cs);
+
+            RewiredUserDataStore ruds = (RewiredUserDataStore)ReInput.userDataStore;
+            string key = "iic|" + ruds.GetControllerMapPlayerPrefsKey(cs.player, cs.recentController.identifier, 0, 0, 2);
+            allControllerMapData.Remove(key);
         }
     }
 }

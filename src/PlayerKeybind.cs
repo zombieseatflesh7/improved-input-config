@@ -44,7 +44,11 @@ public sealed class PlayerKeybind
         return null;
     }
 
-    // Don't move these. The indices matter for the input menu.
+    internal const int highestVanillaActionId = 34;
+    internal const int vanillaKeybindCount = 10;
+    private static int moddedActionIdCounter = highestVanillaActionId + 1; // counter for modded keybinds
+
+    // Don't move these. The indices matter for the input menu. These will always be called before any other mods, because calling "Register" will load this class, which initializes these.
 
     /// <summary>The PAUSE button. Usually ignored for anyone but the first player.</summary>
     public static readonly PlayerKeybind Pause = Register("vanilla:pause", "Vanilla", "Pause", 5);
@@ -110,19 +114,18 @@ public sealed class PlayerKeybind
     /// <param name="name">A short name to show in the Input Settings screen.</param>
     /// <returns>A new <see cref="PlayerKeybind"/> to be used like <c>player.JustPressed(keybind)</c>.</returns>
     /// <exception cref="ArgumentException">The <paramref name="id"/> is invalid or already taken.</exception>
-    private static PlayerKeybind Register(string id, string mod, string name)
+    public static PlayerKeybind Register(string id, string mod, string name)
     {
         Validate(id, mod, name);
-        PlayerKeybind k = Register(id, mod, name, -1);
-        if (Plugin.initModdedActions)
-            k.gameAction = actionIdCounter++;
-        return k;
+        return Register(id, mod, name, moddedActionIdCounter++);
     }
 
     private static PlayerKeybind Register(string id, string mod, string name, int gameAction, int uiAction = -1, bool invert = false)
     {
-        PlayerKeybind k = new(id, mod, name, gameAction, uiAction, invert) { index = keybinds.Count };
-        keybinds.Add(k);
+        PlayerKeybind k = new(id, mod, name, gameAction, uiAction, invert);
+        if (Plugin.Logger != null)
+            Plugin.Logger.LogInfo("Registered PlayerKeybind: \"" + id + "\"");
+        SaveAndLoadHooks.LateLoadKeybindData(k);
         return k;
     }
 
@@ -147,18 +150,11 @@ public sealed class PlayerKeybind
         }
     }
 
-    private static int actionIdCounter = 0;
-    internal static void addActionIds()
-    {
-        actionIdCounter = Plugin.highestVanillaActionId + 1;
-
-        foreach (PlayerKeybind k in keybinds)
-            if (k.gameAction == -1)
-                k.gameAction = actionIdCounter++;
-    }
-
     private PlayerKeybind(string id, string mod, string name, int gameAction, int uiAction, bool invert)
     {
+        index = keybinds.Count;
+        keybinds.Add(this);
+
         Id = id;
         Mod = mod;
         Name = name;
@@ -171,7 +167,7 @@ public sealed class PlayerKeybind
         KeyboardPreset = KeyCode.None;
     }
 
-    internal int index = -1;
+    internal readonly int index;
 
     /// <summary>A unique ID.</summary>
     public string Id { get; }
@@ -179,6 +175,11 @@ public sealed class PlayerKeybind
     public string Mod { get; }
     /// <summary>The display name of the keybind.</summary>
     public string Name { get; }
+
+    internal readonly int gameAction;
+    internal readonly int uiAction;
+    internal readonly bool axisPositive;
+
     /// <summary>The default value for keyboards.</summary>
     [Obsolete]
     public KeyCode KeyboardPreset { get; } = KeyCode.None;
@@ -202,10 +203,6 @@ public sealed class PlayerKeybind
     /// <remarks>May be null.</remarks>
     public Func<PlayerKeybind, bool> HideConflict { get; set; }
 
-    internal int gameAction = -1;
-    internal int uiAction = -1;
-    internal bool axisPositive = true;
-
     /// <summary>True if the binding for <paramref name="playerNumber"/> is set.</summary>
     //public bool Bound(int playerNumber) => Controls[playerNumber].gameControlMap.ContainsAction(gameAction);
     public bool Bound(int playerNumber)
@@ -228,10 +225,10 @@ public sealed class PlayerKeybind
     public bool Unbound(int playerNumber) => !Bound(playerNumber);
 
     /// <summary>Checks if this keybind is from a mod.</summary>
-    public bool IsModded => gameAction > Plugin.highestVanillaActionId || gameAction == -1;
+    internal bool IsModded => gameAction > highestVanillaActionId;
 
     /// <summary>Checks if this keybind is from vanilla.</summary>
-    public bool IsVanilla => !IsModded;
+    internal bool IsVanilla => !IsModded;
 
     /// <summary>
     /// The current keycode configured for the given <paramref name="playerNumber"/> on keyboard.
