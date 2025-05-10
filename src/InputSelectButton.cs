@@ -16,6 +16,7 @@ sealed class InputSelectButton : SimpleButton
     private readonly bool compactMode;
 
     public readonly PlayerKeybind keybind;
+    public readonly int index;
 
     private Color? buttonColor;
     private float filled;
@@ -40,10 +41,11 @@ sealed class InputSelectButton : SimpleButton
 
     Options.ControlSetup ControlSetup => PlayerOneOnly ? menu.manager.rainWorld.options.controls[0] : menu.CurrentControlSetup;
 
-    public InputSelectButton(MenuObject owner, PlayerKeybind keybind, bool compact, Vector2 pos) : base(owner.menu, owner, "", "", pos, new Vector2(30f, 30f))
+    public InputSelectButton(MenuObject owner, int index, PlayerKeybind keybind, bool compact, Vector2 pos) : base(owner.menu, owner, "", "", pos, new Vector2(30f, 30f))
     {
         compactMode = compact;
         menu = (InputOptionsMenu)owner.menu;
+        this.index = index;
         this.keybind = keybind;
 
         lastGamepad = Gamepad;
@@ -248,7 +250,7 @@ sealed class InputSelectButton : SimpleButton
         if (!menu.settingInput.HasValue)
         {
             menu.mouseModeBeforeAssigningInput = menu.manager.menuesMouseMode;
-            menu.settingInput = new IntVector2(Gamepad ? InputOptionsMenu.GAMEPAD_ASSIGNMENT : InputOptionsMenu.KEYBOARD_ASSIGNMENT, keybind.index);
+            menu.settingInput = new IntVector2(Gamepad ? InputOptionsMenu.GAMEPAD_ASSIGNMENT : InputOptionsMenu.KEYBOARD_ASSIGNMENT, index);
 
             for (int i = 0; i < menu.inputMappers.Length; i++)
             {

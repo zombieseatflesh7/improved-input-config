@@ -15,7 +15,7 @@ using Rewired.Data;
 
 namespace ImprovedInput;
 
-[BepInPlugin("com.dual.improved-input-config", "Improved Input Config", "2.0.0")]
+[BepInPlugin("com.dual.improved-input-config", "Improved Input Config", "2.0.1")]
 sealed class Plugin : BaseUnityPlugin
 {
     public static new BepInEx.Logging.ManualLogSource Logger;

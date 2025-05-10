@@ -132,7 +132,7 @@ namespace ImprovedInput
         {
             // --- Keybind buttons ---
             var keybinds = PlayerKeybind.GuiKeybinds();
-            keybindButtons = new InputSelectButton[PlayerKeybind.GuiKeybinds().Count];
+            keybindButtons = new InputSelectButton[keybinds.Count];
 
             int columns = 1 + Mathf.CeilToInt((keybinds.Count - 9) / 10f); // 10 per row
             if (columns > 4)
@@ -152,7 +152,7 @@ namespace ImprovedInput
             for (int i = 10; i < keybinds.Count; i++)
             {
                 PlayerKeybind keybind = keybinds[i];
-                AddKeybindButton(self.pages[0], keybind, c, new Vector2(o.x, o.y - y));
+                AddKeybindButton(self.pages[0], i, keybind, c, new Vector2(o.x, o.y - y));
                 y += 40;
                 if (y >= 40 * 10)
                 {
@@ -178,30 +178,30 @@ namespace ImprovedInput
 
             // Add vanilla buttons
             s.Add(GroupLabel("PLAYER ONE", o + new Vector2(15, 30)));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Pause, c, o - new Vector2(0, y += 20));
+            AddKeybindButton(self.pages[0], 0, PlayerKeybind.Pause, c, o - new Vector2(0, y += 20));
 
             s.Add(GroupLabel("MOVEMENT", o - new Vector2(0, y += 45) + new Vector2(15, 30)));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Up, c, o - new Vector2(0, y += 20));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Left, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Down, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Right, c, o - new Vector2(0, y += 40));
+            AddKeybindButton(self.pages[0], 1, PlayerKeybind.Up, c, o - new Vector2(0, y += 20));
+            AddKeybindButton(self.pages[0], 2, PlayerKeybind.Left, c, o - new Vector2(0, y += 40));
+            AddKeybindButton(self.pages[0], 3, PlayerKeybind.Down, c, o - new Vector2(0, y += 40));
+            AddKeybindButton(self.pages[0], 4, PlayerKeybind.Right, c, o - new Vector2(0, y += 40));
 
             s.Add(GroupLabel("VANILLA", o - new Vector2(0, y += 45) + new Vector2(15, 30)));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Grab, c, o - new Vector2(0, y += 20));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Jump, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Throw, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Special, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], PlayerKeybind.Map, c, o - new Vector2(0, y += 40));
+            AddKeybindButton(self.pages[0], 5, PlayerKeybind.Grab, c, o - new Vector2(0, y += 20));
+            AddKeybindButton(self.pages[0], 6, PlayerKeybind.Jump, c, o - new Vector2(0, y += 40));
+            AddKeybindButton(self.pages[0], 7, PlayerKeybind.Throw, c, o - new Vector2(0, y += 40));
+            AddKeybindButton(self.pages[0], 8, PlayerKeybind.Special, c, o - new Vector2(0, y += 40));
+            AddKeybindButton(self.pages[0], 9, PlayerKeybind.Map, c, o - new Vector2(0, y += 40));
 
             // --- Preset button ---
             self.pages[0].subObjects.Add(new SimpleButton(self, self.pages[0], self.Translate("PRESET"), "BIC CUSTOM PRESET", new(self.testButton.pos.x, 140), new(110, 30)));
         }
 
         // helper function that insures the buttons are stored in the correct order.
-        private static void AddKeybindButton(Page page, PlayerKeybind pk, bool compact, Vector2 pos)
+        private static void AddKeybindButton(Page page, int index, PlayerKeybind pk, bool compact, Vector2 pos)
         {
-            InputSelectButton button = new InputSelectButton(page, pk, compact, pos);
-            keybindButtons[pk.index] = button;
+            InputSelectButton button = new InputSelectButton(page, index, pk, compact, pos);
+            keybindButtons[index] = button;
             page.subObjects.Add(button);
         }
 

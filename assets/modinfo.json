@@ -1,7 +1,7 @@
 ﻿{
   "id": "improved-input-config",
   "name": "Improved Input Config: Extended",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "target_game_version": "v1.10",
   "authors": "Dual, Zombieseatflesh7",
   "description": "Extends the input system to allow other mods to add new custom keybinds easily.<LINE><LINE>Rewritten for better mouse / controller support.<LINE>Compatible with The Watcher DLC",
