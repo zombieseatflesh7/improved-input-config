@@ -51,27 +51,27 @@ public sealed class PlayerKeybind
     // Don't move these. The indices matter for the input menu. These will always be called before any other mods, because calling "Register" will load this class, which initializes these.
 
     /// <summary>The PAUSE button. Usually ignored for anyone but the first player.</summary>
-    public static readonly PlayerKeybind Pause = Register("vanilla:pause", "Vanilla", "Pause", 5);
+    public static readonly PlayerKeybind Pause = new("vanilla:pause", "Vanilla", "Pause", 5);
 
     /// <summary>The GRAB button.</summary>
-    public static readonly PlayerKeybind Grab = Register("vanilla:grab", "Vanilla", "Grab", 3);
+    public static readonly PlayerKeybind Grab = new("vanilla:grab", "Vanilla", "Grab", 3);
     /// <summary>The JUMP button.</summary>
-    public static readonly PlayerKeybind Jump = Register("vanilla:jump", "Vanilla", "Jump", 0, 8);
+    public static readonly PlayerKeybind Jump = new("vanilla:jump", "Vanilla", "Jump", 0, 8);
     /// <summary>The THROW button.</summary>
-    public static readonly PlayerKeybind Throw = Register("vanilla:throw", "Vanilla", "Throw", 4, 9);
+    public static readonly PlayerKeybind Throw = new("vanilla:throw", "Vanilla", "Throw", 4, 9);
     /// <summary>The SPECIAL button.</summary>
-    public static readonly PlayerKeybind Special = Register("vanilla:special", "Vanilla", "Special", 34);
+    public static readonly PlayerKeybind Special = new("vanilla:special", "Vanilla", "Special", 34);
     /// <summary>The MAP button.</summary>
-    public static readonly PlayerKeybind Map = Register("vanilla:map", "Vanilla", "Map", 11);
+    public static readonly PlayerKeybind Map = new("vanilla:map", "Vanilla", "Map", 11);
 
     /// <summary>The UP button. Unconfigurable for controllers.</summary>
-    public static readonly PlayerKeybind Up = Register("vanilla:up", "Vanilla", "Up", 2, 7);
+    public static readonly PlayerKeybind Up = new("vanilla:up", "Vanilla", "Up", 2, 7);
     /// <summary>The LEFT button. Unconfigurable for controllers.</summary>
-    public static readonly PlayerKeybind Left = Register("vanilla:left", "Vanilla", "Left", 1, 6, true);
+    public static readonly PlayerKeybind Left = new("vanilla:left", "Vanilla", "Left", 1, 6, true);
     /// <summary>The DOWN button. Unconfigurable for controllers.</summary>
-    public static readonly PlayerKeybind Down = Register("vanilla:down", "Vanilla", "Down", 2, 7, true);
+    public static readonly PlayerKeybind Down = new("vanilla:down", "Vanilla", "Down", 2, 7, true);
     /// <summary>The RIGHT button. Unconfigurable for controllers.</summary>
-    public static readonly PlayerKeybind Right = Register("vanilla:right", "Vanilla", "Right", 1, 6);
+    public static readonly PlayerKeybind Right = new("vanilla:right", "Vanilla", "Right", 1, 6);
 
     /// <summary>
     /// Registers a new keybind.
@@ -83,10 +83,12 @@ public sealed class PlayerKeybind
     /// <param name="gamepadPreset">The default value for controllers.</param>
     /// <returns>A new <see cref="PlayerKeybind"/> to be used like <c>player.JustPressed(keybind)</c>.</returns>
     /// <exception cref="ArgumentException">The <paramref name="id"/> is invalid or already taken.</exception>
-    //[Obsolete("Keycodes are no longer supported. They will be ignored")]
     public static PlayerKeybind Register(string id, string mod, string name, KeyCode keyboardPreset, KeyCode gamepadPreset)
     {
-        return Register(id, mod, name);
+        Validate(id, mod, name);
+        PlayerKeybind k = new(id, mod, name, moddedActionIdCounter++, -1, false, keyboardPreset, gamepadPreset, gamepadPreset);
+        SaveAndLoadHooks.LateLoadKeybindData(k);
+        return k;
     }
 
     /// <summary>
@@ -100,10 +102,12 @@ public sealed class PlayerKeybind
     /// <param name="xboxPreset">The default value for Xbox controllers.</param>
     /// <returns>A new <see cref="PlayerKeybind"/> to be used like <c>player.JustPressed(keybind)</c>.</returns>
     /// <exception cref="ArgumentException">The <paramref name="id"/> is invalid or already taken.</exception>
-//[Obsolete("Keycodes are no longer supported. They will be ignored")]
     public static PlayerKeybind Register(string id, string mod, string name, KeyCode keyboardPreset, KeyCode gamepadPreset, KeyCode xboxPreset)
     {
-        return Register(id, mod, name);
+        Validate(id, mod, name);
+        PlayerKeybind k = new(id, mod, name, moddedActionIdCounter++, -1, false, keyboardPreset, gamepadPreset, xboxPreset);
+        SaveAndLoadHooks.LateLoadKeybindData(k);
+        return k;
     }
 
     /// <summary>
@@ -114,15 +118,10 @@ public sealed class PlayerKeybind
     /// <param name="name">A short name to show in the Input Settings screen.</param>
     /// <returns>A new <see cref="PlayerKeybind"/> to be used like <c>player.JustPressed(keybind)</c>.</returns>
     /// <exception cref="ArgumentException">The <paramref name="id"/> is invalid or already taken.</exception>
-    public static PlayerKeybind Register(string id, string mod, string name)
+    private static PlayerKeybind Register(string id, string mod, string name)
     {
         Validate(id, mod, name);
-        return Register(id, mod, name, moddedActionIdCounter++);
-    }
-
-    private static PlayerKeybind Register(string id, string mod, string name, int gameAction, int uiAction = -1, bool invert = false)
-    {
-        PlayerKeybind k = new(id, mod, name, gameAction, uiAction, invert);
+        PlayerKeybind k = new(id, mod, name, moddedActionIdCounter++, -1, false);
         SaveAndLoadHooks.LateLoadKeybindData(k);
         return k;
     }
@@ -148,7 +147,7 @@ public sealed class PlayerKeybind
         }
     }
 
-    private PlayerKeybind(string id, string mod, string name, int gameAction, int uiAction, bool invert)
+    private PlayerKeybind(string id, string mod, string name, int gameAction, int uiAction = -1, bool invert = false, KeyCode kbPreset = KeyCode.None, KeyCode gpPreset = KeyCode.None, KeyCode xbPreset = KeyCode.None)
     {
         index = keybinds.Count;
         keybinds.Add(this);
@@ -162,7 +161,9 @@ public sealed class PlayerKeybind
         this.axisPositive = !invert;
 
         //Rewrite preset code
-        KeyboardPreset = KeyCode.None;
+        KeyboardPreset = kbPreset;
+        GamepadPreset = gpPreset;
+        XboxPreset = xbPreset;
     }
 
     internal readonly int index;
@@ -179,13 +180,10 @@ public sealed class PlayerKeybind
     internal readonly bool axisPositive;
 
     /// <summary>The default value for keyboards.</summary>
-    [Obsolete]
     public KeyCode KeyboardPreset { get; } = KeyCode.None;
     /// <summary>The default value for PlayStation, Switch Pro, and other controllers.</summary>
-    [Obsolete]
     public KeyCode GamepadPreset { get; } = KeyCode.None;
     /// <summary>The default value for Xbox controllers.</summary>
-    [Obsolete]
     public KeyCode XboxPreset { get; } = KeyCode.None;
 
     /// <summary>A longer description to show at the bottom of the screen when configuring the keybind.</summary>

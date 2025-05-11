@@ -134,7 +134,7 @@ sealed class InputSelectButton : SimpleButton
         blinkCounter++;
         lastFilled = filled;
 
-        if (menu.settingInput is IntVector2 value && value.y == keybind.index) {
+        if (menu.settingInput is IntVector2 value && value.y == index) {
             filled = Custom.LerpAndTick(filled, 1f, 0.05f, 0.05f);
             if (blinkCounter % 30 < 15) {
                 currentKey.text = "?";

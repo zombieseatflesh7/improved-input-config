@@ -149,7 +149,7 @@ namespace ImprovedInput
             var y = 0f;
 
             // Start at 10, after all vanilla keybinds
-            for (int i = 10; i < keybinds.Count; i++)
+            for (int i = PlayerKeybind.vanillaKeybindCount; i < keybinds.Count; i++)
             {
                 PlayerKeybind keybind = keybinds[i];
                 AddKeybindButton(self.pages[0], i, keybind, c, new Vector2(o.x, o.y - y));
@@ -443,17 +443,14 @@ namespace ImprovedInput
             if (message == "BIC CUSTOM PRESET")
             {
                 if (self.CurrentControlSetup.gamePad)
-                {
-                    SaveAndLoadHooks.ClearUnloadedKeys(self.CurrentControlSetup);
                     message = "GAMEPAD_DEFAULTS";
-                }
                 else
-                {
-                    SaveAndLoadHooks.ClearUnloadedKeys(self.CurrentControlSetup);
                     message = "KEYBOARD_DEFAULTS";
-                }
 
-                orig(self, sender, message);
+                // load preset keys
+                SaveAndLoadHooks.ClearUnloadedKeys(self.CurrentControlSetup);
+                orig(self, sender, message); 
+                SaveAndLoadHooks.LoadPresetMappings(self.CurrentControlSetup);
 
                 // TODO revisit this code
                 foreach (InputSelectButton b in keybindButtons)

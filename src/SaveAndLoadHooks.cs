@@ -94,7 +94,7 @@ namespace ImprovedInput
             return list;
         }
 
-        static readonly string version = "1.5";
+        static readonly string version = "1.6";
 
         private struct CmData
         {
@@ -181,54 +181,69 @@ namespace ImprovedInput
             allControllerMapData.Remove(key);
             allControllerMapData.Add(key, cmapData);
 
-            if (!PlayerPrefs.HasKey(key))
-                return cmap;
+            List<PlayerKeybind> presetKeybinds = new(PlayerKeybind.keybinds);
+            presetKeybinds.RemoveRange(0, 10);
 
             // interpreting string data
-            try
+            if (PlayerPrefs.HasKey(key))
             {
-                string value = PlayerPrefs.GetString(key);
-                string[] data = value.Split('|');
-                if (data[0] != version)
+                try
                 {
-                    PlayerPrefs.DeleteKey(key);
-                    return cmap;
-                }
-
-                Plugin.Logger.LogDebug($"loading controller: " + key + "\ndata: " + value);
-
-                // reading unbound keybinds
-                int offset = 3;
-                int numUnbound = int.Parse(data[1]);
-
-                // TODO Implement unbound keybind checking when default keybinds are reimplemented
-                    // if unbound and unloaded, add to unknowns
-                    // if unbound and loaded, ignore
-
-                // reading bound keybinds
-                offset += numUnbound;
-                int numBound = int.Parse(data[2]);
-
-                for (int i = offset; i < offset + numBound * 4; i += 4)
-                {
-                    PlayerKeybind keybind = PlayerKeybind.Get(data[i]);
-                    if (keybind == null) // unloaded
+                    string value = PlayerPrefs.GetString(key);
+                    string[] data = value.Split('|');
+                    if (data[0] != version)
                     {
-                        cmapData.bound.Add(new string[] { data[i], data[i + 1], data[i + 2], data[i + 3] });
-                        continue;
+                        PlayerPrefs.DeleteKey(key);
+                        return cmap;
                     }
 
-                    AddControllerMapping(cmap, keybind, data[i + 1], data[i + 2], data[i + 3]);
+                    Plugin.Logger.LogDebug($"loading controller: " + key + "\ndata: " + value);
+
+                    // reading unbound keybinds
+                    int offset = 3;
+                    int numUnbound = int.Parse(data[1]);
+
+                    // reading unbound keybinds
+                    for (int i = offset; i < offset + numUnbound; i++)
+                    {
+                        PlayerKeybind pk = PlayerKeybind.Get(data[i]);
+                        if (pk == null) // unloaded
+                            cmapData.unbound.Add(data[i]);
+                        else // loaded
+                            presetKeybinds.Remove(pk);
+                    }
+
+                    // reading bound keybinds
+                    offset += numUnbound;
+                    int numBound = int.Parse(data[2]);
+
+                    for (int i = offset; i < offset + numBound * 4; i += 4)
+                    {
+                        PlayerKeybind pk = PlayerKeybind.Get(data[i]);
+                        if (pk == null) // unloaded
+                        {
+                            cmapData.bound.Add(new string[] { data[i], data[i + 1], data[i + 2], data[i + 3] });
+                            continue;
+                        }
+                        else // loaded
+                        {
+                            AddControllerMapping(cmap, pk.gameAction, data[i + 1], data[i + 2], data[i + 3]);
+                            presetKeybinds.Remove(pk);
+                        }
+                    }
                 }
-
-                // if not in list, and loaded, set default
-
+                catch (Exception ex)
+                {
+                    Plugin.Logger.LogError("Failed to parse controller data for " + key);
+                    Debug.LogException(ex);
+                }
             }
-            catch (Exception ex)
-            {
-                Plugin.Logger.LogError("Failed to parse controller data for " + key);
-                Debug.LogException(ex);
-            }
+
+            // if not in list, and loaded, set default
+            UpdateJoystickPreset(ReInput.controllers.GetController(controllerIdentifier));
+            foreach (PlayerKeybind pk in presetKeybinds)
+                AddControllerPresetKeybind(cmap, pk);
+
             return cmap;
         }
 
@@ -335,10 +350,10 @@ namespace ImprovedInput
                 for (int i = 2; i < map.Length; i++)
                 {
                     string[] mapping = map[i].Split('|');
-                    PlayerKeybind keybind = PlayerKeybind.Get(mapping[0]);
-                    if (keybind != null)
+                    PlayerKeybind pk = PlayerKeybind.Get(mapping[0]);
+                    if (pk != null)
                     {
-                        AddMouseMapping(self, keybind, mapping[1]);
+                        self.SetMouseMapping(pk.gameAction, pk.axisPositive, int.Parse(mapping[1]));
                     }
                     else
                     {
@@ -366,7 +381,7 @@ namespace ImprovedInput
 
         internal static void LateLoadKeybindData(PlayerKeybind pk)
         {
-            if (!hasLoadedOptions || pk.IsVanilla)
+            if (!hasLoadedOptions)
                 return;
 
             Plugin.Logger.LogWarning($"PlayerKeybind \"{pk.Id}\" was registered late! It should be registered during OnEnable!");
@@ -394,7 +409,7 @@ namespace ImprovedInput
                     {
                         usePreset = false;
                         string[] mapping = cmapData.bound[i];
-                        AddControllerMapping(cmap, pk, mapping[1], mapping[2], mapping[3]);
+                        AddControllerMapping(cmap, pk.gameAction, mapping[1], mapping[2], mapping[3]);
                         cmapData.bound.RemoveAt(i);
                     }
 
@@ -409,7 +424,7 @@ namespace ImprovedInput
                         if (mapping[0] == pk.Id)
                         {
                             usePreset = false;
-                            AddMouseMapping(cs, pk, mapping[1]);
+                            cs.SetMouseMapping(pk.gameAction, pk.axisPositive, int.Parse(mapping[1]));
                             mappings.RemoveAt(i);
                         }
                     }
@@ -418,12 +433,13 @@ namespace ImprovedInput
                 // assign preset
                 if (usePreset)
                 {
-                    // TODO assign preset
+                    UpdateJoystickPreset(cmap.controller);
+                    AddControllerPresetKeybind(cmap, pk);
                 }
             }
         }
 
-        private static void AddControllerMapping(ControllerMap map, PlayerKeybind pk, string elementIdString, string elementTypeString, string axisRangeString)
+        private static void AddControllerMapping(ControllerMap map, int actionId, string elementIdString, string elementTypeString, string axisRangeString)
         {
             int elementId = int.Parse(elementIdString);
             ControllerElementType type;
@@ -432,16 +448,11 @@ namespace ImprovedInput
             if (!Enum.TryParse(elementTypeString, out type) || !Enum.TryParse(axisRangeString, out range))
                 return;
 
-            map.DeleteElementMapsWithAction(pk.gameAction);
-            map.CreateElementMap(pk.gameAction, Pole.Positive, elementId, type, range, false);
+            map.DeleteElementMapsWithAction(actionId);
+            map.CreateElementMap(actionId, Pole.Positive, elementId, type, range, false);
         }
-    
-        private static void AddMouseMapping(Options.ControlSetup cs, PlayerKeybind pk, string mouseButton)
-        {
-            string key = pk.gameAction + "," + (pk.axisPositive ? "1" : "0");
-            cs.mouseButtonMappings[key] = int.Parse(mouseButton);
-        }
-    
+
+        // must clear data from unloaded keybinds so they don't get saved when we load the preset mapping
         internal static void ClearUnloadedKeys(Options.ControlSetup cs)
         {
             if (!cs.gamePad)
@@ -450,6 +461,91 @@ namespace ImprovedInput
             RewiredUserDataStore ruds = (RewiredUserDataStore)ReInput.userDataStore;
             string key = "iic|" + ruds.GetControllerMapPlayerPrefsKey(cs.player, cs.recentController.identifier, 0, 0, 2);
             allControllerMapData.Remove(key);
+        }
+
+        private static Options.ControlSetup.Preset joystickPreset; // only used for setting preset controller keybinds
+
+        internal static void UpdateJoystickPreset(Controller controller)
+        {
+            if (controller.type == ControllerType.Joystick)
+            {
+                if (RWInput.IsPlaystationControllerType(controller.name, controller.hardwareIdentifier))
+                    joystickPreset = Options.ControlSetup.Preset.PS4DualShock;
+                else if (RWInput.IsSwitchProControllerType(controller.name, controller.hardwareIdentifier))
+                    joystickPreset = Options.ControlSetup.Preset.SwitchProController;
+                else
+                    joystickPreset = Options.ControlSetup.Preset.XBox;
+            }
+        }
+
+        // loading only modded preset mappings
+        internal static void LoadPresetMappings(Options.ControlSetup cs)
+        {
+            joystickPreset = cs.recentPreset;
+            for(int i = PlayerKeybind.vanillaKeybindCount; i < PlayerKeybind.keybinds.Count; i++)
+                AddControllerPresetKeybind(cs.gameControlMap, PlayerKeybind.keybinds[i]);
+        }
+
+        private static void AddControllerPresetKeybind(ControllerMap map, PlayerKeybind pk)
+        {
+            if (map.controllerType == ControllerType.Keyboard && pk.KeyboardPreset != KeyCode.None)
+            {
+                map.CreateElementMap(pk.gameAction, Pole.Positive, pk.KeyboardPreset, ModifierKeyFlags.None);
+            }
+            else if (map.controllerType == ControllerType.Joystick)
+            {
+                int elementId = JoystickKeycodeToElementId(pk);
+                if (elementId > -1)
+                    map.CreateElementMap(pk.gameAction, Pole.Positive, elementId, ControllerElementType.Button, AxisRange.Full, false);
+            }
+        }
+
+        private static int JoystickKeycodeToElementId(PlayerKeybind pk)
+        {
+            if (joystickPreset == Options.ControlSetup.Preset.XBox)
+            {
+                return pk.XboxPreset switch
+                {
+                    KeyCode.JoystickButton0 => 6, // A
+                    KeyCode.JoystickButton1 => 7, // B
+                    KeyCode.JoystickButton2 => 8, // X
+                    KeyCode.JoystickButton3 => 9, // Y
+                    KeyCode.JoystickButton4 => 10, // left shoulder
+                    KeyCode.JoystickButton5 => 11, // right shoulder
+                    KeyCode.JoystickButton6 => 12, // back
+                    KeyCode.JoystickButton7 => 13, // start
+                    KeyCode.JoystickButton8 => 14, // left stick button
+                    KeyCode.JoystickButton9 => 15, // right stick button
+                    _ => -1
+                };
+            }
+            else if (joystickPreset == Options.ControlSetup.Preset.PS4DualShock)
+            {
+                return pk.GamepadPreset switch
+                {
+                    KeyCode.JoystickButton0 => 8, // square
+                    KeyCode.JoystickButton1 => 7, // cross
+                    KeyCode.JoystickButton2 => 8, // circle
+                    KeyCode.JoystickButton3 => 9, // triangle
+                    KeyCode.JoystickButton4 => 10, // L1
+                    KeyCode.JoystickButton5 => 11, // R1
+                    KeyCode.JoystickButton6 => 4, // L2
+                    KeyCode.JoystickButton7 => 5, // R2
+                    KeyCode.JoystickButton8 => 12, // share
+                    KeyCode.JoystickButton9 => 13, // options
+                    KeyCode.JoystickButton10 => 16, // left stick button
+                    KeyCode.JoystickButton11 => 17, // right stick button
+                    KeyCode.JoystickButton12 => 14, // PS button
+                    KeyCode.JoystickButton13 => 15, // touchpad
+                    _ => -1
+                };
+            }
+            else if (joystickPreset == Options.ControlSetup.Preset.SwitchProController)
+            {
+                // TODO add switch support
+                return -1;
+            }
+            return -1;
         }
     }
 }

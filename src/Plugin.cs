@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Security.Permissions;
 using Rewired.Data;
+using UnityEngine;
 
 // Allows access to private members
 #pragma warning disable CS0618
@@ -15,7 +16,7 @@ using Rewired.Data;
 
 namespace ImprovedInput;
 
-[BepInPlugin("com.dual.improved-input-config", "Improved Input Config", "2.0.1")]
+[BepInPlugin("com.dual.improved-input-config", "Improved Input Config", "2.0.2")]
 sealed class Plugin : BaseUnityPlugin
 {
     public static new BepInEx.Logging.ManualLogSource Logger;
@@ -52,6 +53,22 @@ sealed class Plugin : BaseUnityPlugin
         // Input Menu stuff
         InputMenuHooks.InitHooks();
         SaveAndLoadHooks.InitHooks();
+
+        //testing
+        //On.RainWorld.Update += UpdateLogInputs;
+    }
+
+    private void UpdateLogInputs(On.RainWorld.orig_Update orig, RainWorld self)
+    {
+        orig(self);
+
+        for (int i = (int)KeyCode.JoystickButton0; i <= (int)KeyCode.JoystickButton19; i++)
+        {
+            if (Input.GetKeyDown((KeyCode)i))
+            {
+                Logger.LogInfo((KeyCode)i);
+            }
+        }
     }
 
 
