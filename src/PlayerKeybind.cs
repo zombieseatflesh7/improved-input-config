@@ -179,6 +179,8 @@ public sealed class PlayerKeybind
     internal readonly int uiAction;
     internal readonly bool axisPositive;
 
+    // TODO deprecate and replace this preset code
+
     /// <summary>The default value for keyboards.</summary>
     public KeyCode KeyboardPreset { get; } = KeyCode.None;
     /// <summary>The default value for PlayStation, Switch Pro, and other controllers.</summary>
@@ -199,20 +201,27 @@ public sealed class PlayerKeybind
     /// <remarks>May be null.</remarks>
     public Func<PlayerKeybind, bool> HideConflict { get; set; }
 
+    /// <summary>Checks if this keybind is from a mod.</summary>
+    internal bool IsModded => gameAction > highestVanillaActionId;
+
+    /// <summary>Checks if this keybind is from vanilla.</summary>
+    internal bool IsVanilla => !IsModded;
+
     /// <summary>True if the binding for <paramref name="playerNumber"/> is set.</summary>
-    //public bool Bound(int playerNumber) => Controls[playerNumber].gameControlMap.ContainsAction(gameAction);
     public bool Bound(int playerNumber)
     {
-        Options.ControlSetup controlSetup = Controls[playerNumber];
-        if (controlSetup == null)
+        if (playerNumber < 0 || playerNumber >= CustomInputExt.MaxPlayers)
+            throw new ArgumentOutOfRangeException(nameof(playerNumber));
+
+        Options.ControlSetup cs = Controls[playerNumber];
+        if (cs == null)
             return false;
 
-        if (controlSetup.gameControlMap.ContainsAction(gameAction))
+        if (cs.gameControlMap.ContainsAction(gameAction))
             return true;
 
-        string key = gameAction + "," + (axisPositive ? "1" : "0");
-        if (controlSetup.mouseButtonMappings.ContainsKey(key))
-            return controlSetup.mouseButtonMappings[key] > -1;
+        if (cs.GetMouseMapping(gameAction, axisPositive) > -1)
+            return true;
 
         return false;
     }
@@ -220,57 +229,24 @@ public sealed class PlayerKeybind
     /// <summary>True if the binding for <paramref name="playerNumber"/> is not set.</summary>
     public bool Unbound(int playerNumber) => !Bound(playerNumber);
 
-    /// <summary>Checks if this keybind is from a mod.</summary>
-    internal bool IsModded => gameAction > highestVanillaActionId;
-
-    /// <summary>Checks if this keybind is from vanilla.</summary>
-    internal bool IsVanilla => !IsModded;
-
-    /// <summary>
-    /// The current keycode configured for the given <paramref name="playerNumber"/> on keyboard.
-    /// Returns None if the player is on controller or uses mouse for input.
-    /// </summary>
-    [Obsolete("IIC 2 does not use KeyCodes. This method is unreliable")]
-    public KeyCode Keyboard(int playerNumber)
-    {
-        if (playerNumber < 0 || playerNumber >= CustomInputExt.MaxPlayers) {
-            throw new ArgumentOutOfRangeException(nameof(playerNumber));
-        }
-        if (this == Pause) playerNumber = 0;
-        var cs = RWCustom.Custom.rainWorld.options.controls[playerNumber];
-        if (cs.gamePad)
-            return KeyCode.None;
-        return cs.KeyCodeFromAction(gameAction, 0);
-    }
-
-    /// <summary>
-    /// The current keycode configured for the given <paramref name="playerNumber"/> on a controller.
-    /// Returns None if the player is on keyboard or using axis inputs.
-    /// </summary>
-    [Obsolete("IIC 2 does not use KeyCodes. This method is unreliable")]
-    public KeyCode Gamepad(int playerNumber)
+    /// <summary>The name of the button currently bound for this <paramref name="playerNumber"/>. Returns "None" if unbound.</summary>
+    /// <remarks>Added in IIC:E v2.0.3</remarks>
+    public string CurrentBindingName(int playerNumber)
     {
         if (playerNumber < 0 || playerNumber >= CustomInputExt.MaxPlayers)
-        {
             throw new ArgumentOutOfRangeException(nameof(playerNumber));
-        }
-        if (this == Pause) playerNumber = 0;
-        var cs = RWCustom.Custom.rainWorld.options.controls[playerNumber];
-        if (!cs.gamePad)
-            return KeyCode.None;
-        return cs.KeyCodeFromAction(gameAction, 0);
-    }
 
-    /// <summary>The current recognized keycode for the given <paramref name="playerNumber"/>.</summary>
-    [Obsolete("IIC 2 does not use KeyCodes. This method is unreliable")]
-    public KeyCode CurrentBinding(int playerNumber)
-    {
-        if (playerNumber < 0 || playerNumber >= CustomInputExt.MaxPlayers) {
-            throw new ArgumentOutOfRangeException(nameof(playerNumber));
-        }
-        if (this == Pause) playerNumber = 0;
-        
-        return RWCustom.Custom.rainWorld.options.controls[playerNumber].KeyCodeFromAction(gameAction, 0);
+        Options.ControlSetup cs = Controls[playerNumber];
+
+        ActionElementMap actionElementMap = cs.IicGetActionElement(gameAction, 0, axisPositive);
+        if (actionElementMap != null)
+            return actionElementMap.elementIdentifierName;
+
+        int mouseButton = cs.GetMouseMapping(gameAction, axisPositive);
+        if (!cs.gamePad && mouseButton > -1)
+            return mouseButton switch { 0 => "Left Click", 1 => "Right Click", 2 => "Middle Click", _ => "Mouse " + (mouseButton + 1) };
+
+        return "None";
     }
 
     /// <summary>
@@ -325,4 +301,43 @@ public sealed class PlayerKeybind
     /// Returns <see cref="Id"/>.
     /// </summary>
     public override string ToString() => Id;
+
+    // DEPRECATED STUFF
+
+    /// <summary>
+    /// The current keycode configured for the given <paramref name="playerNumber"/> on keyboard.
+    /// </summary>
+    [Obsolete("KeyCode returning methods are deprecated in IIC:E. Keyboard(int) only works if the player has selected keyboard input.")]
+    public KeyCode Keyboard(int playerNumber)
+    {
+        if (playerNumber < 0 || playerNumber >= CustomInputExt.MaxPlayers)
+            throw new ArgumentOutOfRangeException(nameof(playerNumber));
+
+        if (this == Pause) playerNumber = 0;
+        var cs = RWCustom.Custom.rainWorld.options.controls[playerNumber];
+        if (cs.gamePad)
+            return KeyCode.None;
+
+        int mouseButton = cs.GetMouseMapping(gameAction, axisPositive);
+        if (mouseButton > -1 && mouseButton <= 6)
+            return mouseButton switch { 0 => KeyCode.Mouse0, 1 => KeyCode.Mouse1, 2 => KeyCode.Mouse2, 3 => KeyCode.Mouse3, 4 => KeyCode.Mouse4, 5 => KeyCode.Mouse5, 6 => KeyCode.Mouse6, _ => KeyCode.None};
+
+        return cs.KeyCodeFromAction(gameAction, 0, axisPositive);
+    }
+
+    /// <summary>
+    /// The current keycode configured for the given <paramref name="playerNumber"/> on a controller.
+    /// </summary>
+    [Obsolete("KeyCode returning methods are deprecated in IIC:E. Gamepad(int) will always return None.")]
+    public KeyCode Gamepad(int playerNumber)
+    {
+        return KeyCode.None;
+    }
+
+    /// <summary>The current recognized keycode for the given <paramref name="playerNumber"/>.</summary>
+    [Obsolete("KeyCode returning methods are deprecated in IIC:E. CurrentBinding(int) only works if the player has selected keyboard input.")]
+    public KeyCode CurrentBinding(int playerNumber)
+    {
+        return Keyboard(playerNumber);
+    }
 }

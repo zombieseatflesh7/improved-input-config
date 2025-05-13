@@ -37,61 +37,45 @@ namespace ImprovedInput
             On.Menu.InputTesterHolder.Back.Update += Back_Update;
         }
 
-        // InputOptionMenu EXTENSIONS
+        // Helper Functions
 
         // Copied and modified from InputOptionsMenu.InputSelectButton
         // helper function for buttons, basically unchanged, only moved to a different class.
-        internal static bool IsInputDeviceCurrentlyAvailable(this InputOptionsMenu menu, int player, bool gamePadBool)
+        internal static bool IsInputDeviceCurrentlyAvailable(Options.ControlSetup cs, bool gamepad)
         {
-            Options.ControlSetup controlSetup = menu.manager.rainWorld.options.controls[player];
-            if (controlSetup.GetControlPreference() == Options.ControlSetup.ControlToUse.ANY)
-            {
+            if (cs.GetControlPreference() == Options.ControlSetup.ControlToUse.ANY)
                 return false;
-            }
-            if (!gamePadBool && !controlSetup.player.controllers.hasKeyboard)
-            {
+            if (!gamepad && !cs.player.controllers.hasKeyboard)
                 return false;
-            }
-            if (gamePadBool && (controlSetup.GetActiveController() == null || controlSetup.GetActiveController().type != ControllerType.Joystick))
-            {
+            if (gamepad && (cs.GetActiveController() == null || cs.GetActiveController().type != ControllerType.Joystick))
                 return false;
-            }
+
             return true;
         }
 
         // Copied and modified from InputOptionsMenu.InputSelectButton
         // Controls the button text. Changed to use PlayerKeybinds.
-        internal static string ButtonText(this InputOptionsMenu menu, int player, PlayerKeybind keybind, bool inputTesterDisplay, out Color? color)
+        internal static string ButtonText(int player, PlayerKeybind keybind, bool inputTesterDisplay, out Color? color)
         {
             color = null;
 
-            Options.ControlSetup controlSetup = menu.manager.rainWorld.options.controls[player];
-            bool gamePadBool = controlSetup.gamePad;
-            bool flag = controlSetup.GetControlPreference() == Options.ControlSetup.ControlToUse.ANY && controlSetup.GetActiveController() != null && inputTesterDisplay;
-            if (!menu.IsInputDeviceCurrentlyAvailable(player, gamePadBool) && !flag)
-            {
+            Options.ControlSetup cs = Controls[player];
+            bool gamepad = cs.gamePad;
+            bool valid = cs.GetControlPreference() == Options.ControlSetup.ControlToUse.ANY && cs.GetActiveController() != null && inputTesterDisplay; // unassigned on the input test screen?
+            if (!IsInputDeviceCurrentlyAvailable(cs, gamepad) && !valid)
                 return "-";
-            }
 
             string key = keybind.gameAction + "," + (keybind.axisPositive ? "1" : "0");
-            if (!gamePadBool && controlSetup.mouseButtonMappings.ContainsKey(key) && controlSetup.mouseButtonMappings[key] >= 0 && controlSetup.mouseButtonMappings[key] < ReInput.controllers.Mouse.Buttons.Count)
+            if (!gamepad && cs.mouseButtonMappings.ContainsKey(key) && cs.mouseButtonMappings[key] >= 0 && cs.mouseButtonMappings[key] < ReInput.controllers.Mouse.Buttons.Count)
             {
-                int num = controlSetup.mouseButtonMappings[key];
-                return num switch
-                {
-                    0 => "Left Click",
-                    1 => "Right Click",
-                    2 => "Middle Click",
-                    _ => "Mouse " + (num + 1),
-                };
+                int num = cs.mouseButtonMappings[key];
+                return num switch { 0 => "Left Click", 1 => "Right Click", 2 => "Middle Click", _ => "Mouse " + (num + 1) };
             }
 
-            ActionElementMap actionElementMap = controlSetup.IicGetActionElement(keybind.gameAction, 0, keybind.axisPositive);
+            ActionElementMap actionElementMap = cs.IicGetActionElement(keybind.gameAction, 0, keybind.axisPositive);
             string buttonName = "None";
             if (actionElementMap != null)
-            {
                 buttonName = actionElementMap.elementIdentifierName;
-            }
 
             // Getting button colors
             Options.ControlSetup.Preset ty = Custom.rainWorld.options.controls[player].GetActivePreset();
@@ -536,7 +520,7 @@ namespace ImprovedInput
                     continue;
                 }
 
-                string text = (self.menu as InputOptionsMenu).ButtonText(self.playerIndex, PlayerKeybind.keybinds[btn.buttonIndex], true, out _);
+                string text = ButtonText(self.playerIndex, PlayerKeybind.keybinds[btn.buttonIndex], true, out _);
 
                 if (text == "None" || text == "< N / A >" || text == "-" || text == "???")
                 {

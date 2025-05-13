@@ -65,17 +65,8 @@ sealed class InputSelectButton : SimpleButton
         Container.AddChild(arrow = new("keyShiftB"));
     }
 
-    private KeyCode CurrentlyDisplayed()
-    {
-        bool arrowKey = keybind.index is 6 or 7 or 8 or 9;
-
-        return Gamepad && !arrowKey ? keybind.Gamepad(ControlSetup.index) : keybind.Keyboard(ControlSetup.index);
-    }
-
     public override Color MyColor(float timeStacker)
     {
-        KeyCode current = CurrentlyDisplayed();
-
         float t = (blinkCounter % 4 < 2) ? 0f : Custom.SCurve(Mathf.Lerp(lastRecentlyUsedFlash, recentlyUsedFlash, timeStacker), 0.4f);
 
         Color color = Color.Lerp(base.MyColor(timeStacker), Menu.Menu.MenuRGB(Menu.Menu.MenuColors.White), t);
@@ -88,8 +79,7 @@ sealed class InputSelectButton : SimpleButton
             return color;
         }
 
-
-        if (current != KeyCode.None && !buttonBehav.greyedOut && !PlayerOneOnly) {
+        if (!(ControlSetup.gamePad && MovementKey) && !buttonBehav.greyedOut && !PlayerOneOnly) {
             // Hint at Survivor, Monk, Hunter, or Nightcat (respectively) having a duplicate key
             if (blinkCounter % 80 is < 20 && ConflictsWith(0))              return Color.Lerp(color, new Color(1, 1, 1), 0.5f);
             if (blinkCounter % 80 is >= 20 and < 40 && ConflictsWith(1))    return Color.Lerp(color, new Color(1, 1, 0), 0.2f);
@@ -224,7 +214,7 @@ sealed class InputSelectButton : SimpleButton
             buttonColor = null;
         }
         else {
-            string text = menu.ButtonText(Player, keybind, false, out buttonColor);
+            string text = InputMenuHooks.ButtonText(Player, keybind, false, out buttonColor);
             
             //TODO rewrite this
             if (text.EndsWith("Arrow")) {

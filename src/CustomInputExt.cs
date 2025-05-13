@@ -157,7 +157,6 @@ public static class CustomInputExt
     internal static ActionElementMap IicGetActionElement(this Options.ControlSetup controlSetup, int actionId, int categoryId, bool axisPositive)
     {
         ControllerMap cmap = categoryId == 0 ? controlSetup.gameControlMap : controlSetup.uiControlMap;
-
         if (cmap == null)
             return null;
 
