@@ -217,7 +217,7 @@ public sealed class PlayerKeybind
         if (cs == null)
             return false;
 
-        if (cs.gameControlMap.ContainsAction(gameAction))
+        if (cs.gameControlMap != null && cs.gameControlMap.ContainsAction(gameAction))
             return true;
 
         if (cs.GetMouseMapping(gameAction, axisPositive) > -1)

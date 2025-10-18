@@ -16,7 +16,7 @@ using UnityEngine;
 
 namespace ImprovedInput;
 
-[BepInPlugin("com.dual.improved-input-config", "Improved Input Config", "2.0.3")]
+[BepInPlugin("com.dual.improved-input-config", "Improved Input Config", "2.0.5")]
 sealed class Plugin : BaseUnityPlugin
 {
     public static new BepInEx.Logging.ManualLogSource Logger;
