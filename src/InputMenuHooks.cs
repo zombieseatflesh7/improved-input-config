@@ -9,6 +9,7 @@ using Mono.Cecil.Cil;
 using Rewired;
 using RWCustom;
 using HarmonyLib;
+using Menu.Remix.MixedUI;
 
 namespace ImprovedInput
 {
@@ -16,6 +17,10 @@ namespace ImprovedInput
     {
         private static Options.ControlSetup[] Controls => RWCustom.Custom.rainWorld.options.controls;
         private static InputSelectButton[] keybindButtons;
+        private static List<List<MenuObject>> keybindPages;
+        private static int pageNum;
+        private static BigArrowButton prevButton;
+        private static BigArrowButton nextButton;
 
         internal static void InitHooks()
         {
@@ -23,10 +28,11 @@ namespace ImprovedInput
             IL.Menu.InputOptionsMenu.ctor += AddCustomButtonsIL;
             On.Menu.InputOptionsMenu.ctor += FixVanillaButtons;
             IL.Menu.InputOptionsMenu.Update += FixUpdateIL;
+            On.Menu.InputOptionsMenu.Update += Update;
             On.Menu.InputOptionsMenu.SetCurrentlySelectedOfSeries += FixSelection;
             On.Menu.InputOptionsMenu.RefreshInputGreyOut += RefreshButtons;
             On.Menu.InputOptionsMenu.UpdateInfoText += InputOptionsMenu_UpdateInfoText;
-            On.Menu.InputOptionsMenu.Singal += LoadPreset;
+            On.Menu.InputOptionsMenu.Singal += Signal;
 
             // Input testing
             On.Menu.InputTesterHolder.InputTester.ctor += InputTester_ctor;
@@ -114,79 +120,142 @@ namespace ImprovedInput
         
         private static void AddCustomButtons(InputOptionsMenu self)
         {
+            var s = self.pages[0].subObjects;
+            MenuLabel version = new MenuLabel(self, self.pages[0], $"IIC v{Plugin.VERSION}", new Vector2((1366f - self.manager.rainWorld.screenSize.x) / 2f + 20f, self.manager.rainWorld.screenSize.y - 30f), new Vector2(200f, 20f), false);
+            version.size = new Vector2(version.label.textRect.width, version.size.y);
+            //version.label.anchorX = 0.5f;
+            //version.label.anchorY = 0f;
+            //version.label.color = Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey);
+            s.Add(version);
+
             // --- Keybind buttons ---
             var keybinds = PlayerKeybind.GuiKeybinds();
             keybindButtons = new InputSelectButton[keybinds.Count];
 
-            int columns = 1 + Mathf.CeilToInt((keybinds.Count - 9) / 10f); // 10 per row
-            if (columns > 4)
-            {
-                throw new InvalidOperationException("How are there possibly more than 30 modded keybinds at one time?");
-            }
-
-            var s = self.pages[0].subObjects;
-            var c = columns > 1; // compact mode
-            var columnWidth = c ? 120 : 200;
-            var o = columns == 1
-                ? new Vector2(960, 642)
-                : new Vector2(columns > 2 ? 1136 : 1024, 642);
+            List<List<MenuObject>> c = new List<List<MenuObject>>();
+            var columnWidth = 160;
+            var o = new Vector2(1000, 687);
+            if (keybinds.Count > 10) o.x -= 80;
             var y = 0f;
-
-            // Start at 10, after all vanilla keybinds
-            for (int i = PlayerKeybind.vanillaKeybindCount; i < keybinds.Count; i++)
-            {
-                PlayerKeybind keybind = keybinds[i];
-                AddKeybindButton(self.pages[0], i, keybind, c, new Vector2(o.x, o.y - y));
-                y += 40;
-                if (y >= 40 * 10)
-                {
-                    y = 0;
-                    o.x -= columnWidth;
-                }
-            }
-
-            if (y != 0)
-            {
-                y = 0;
-                o.x -= columnWidth;
-            }
 
             MenuLabel GroupLabel(string text, Vector2 pos)
             {
-                MenuLabel label = new(self, self.pages[0], text, pos + new Vector2(c ? 15 : 0, 0), Vector2.zero, false);
-                label.label.anchorX = c ? 1f : 0.5f;
+                MenuLabel label = new(self, self.pages[0], text, new(pos.x + 30, pos.y + 10), Vector2.zero, false);
+                label.label.anchorX = 1;
                 label.label.anchorY = 1;
                 label.label.color = Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey);
                 return label;
             }
+             
+            // helper function that insures the buttons are stored in the correct order.
+            InputSelectButton KeybindButton(Page page, int index, PlayerKeybind pk, Vector2 pos)
+            {
+                InputSelectButton button = new InputSelectButton(page, index, pk, true, pos);
+                keybindButtons[index] = button;
+                return button;
+            }
 
             // Add vanilla buttons
-            s.Add(GroupLabel("PLAYER ONE", o + new Vector2(15, 30)));
-            AddKeybindButton(self.pages[0], 0, PlayerKeybind.Pause, c, o - new Vector2(0, y += 20));
+            c.Add(new List<MenuObject>());
+            c[0].Add(GroupLabel("PLAYER ONE", o - new Vector2(0, y += 25)));
+            c[0].Add(KeybindButton(self.pages[0], 0, PlayerKeybind.Pause, o - new Vector2(0, y += 40)));
 
-            s.Add(GroupLabel("MOVEMENT", o - new Vector2(0, y += 45) + new Vector2(15, 30)));
-            AddKeybindButton(self.pages[0], 1, PlayerKeybind.Up, c, o - new Vector2(0, y += 20));
-            AddKeybindButton(self.pages[0], 2, PlayerKeybind.Left, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], 3, PlayerKeybind.Down, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], 4, PlayerKeybind.Right, c, o - new Vector2(0, y += 40));
+            c[0].Add(GroupLabel("GENERAL", o - new Vector2(0, y += 25)));
+            c[0].Add(KeybindButton(self.pages[0], 1, PlayerKeybind.Map, o - new Vector2(0, y += 40)));
+            c[0].Add(KeybindButton(self.pages[0], 2, PlayerKeybind.Grab, o - new Vector2(0, y += 40)));
+            c[0].Add(KeybindButton(self.pages[0], 3, PlayerKeybind.Jump, o - new Vector2(0, y += 40)));
+            c[0].Add(KeybindButton(self.pages[0], 4, PlayerKeybind.Throw, o - new Vector2(0, y += 40)));
+            c[0].Add(KeybindButton(self.pages[0], 5, PlayerKeybind.Special, o - new Vector2(0, y += 40)));
 
-            s.Add(GroupLabel("VANILLA", o - new Vector2(0, y += 45) + new Vector2(15, 30)));
-            AddKeybindButton(self.pages[0], 5, PlayerKeybind.Grab, c, o - new Vector2(0, y += 20));
-            AddKeybindButton(self.pages[0], 6, PlayerKeybind.Jump, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], 7, PlayerKeybind.Throw, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], 8, PlayerKeybind.Special, c, o - new Vector2(0, y += 40));
-            AddKeybindButton(self.pages[0], 9, PlayerKeybind.Map, c, o - new Vector2(0, y += 40));
+            c[0].Add(GroupLabel("MOVEMENT", o - new Vector2(0, y += 25)));
+            c[0].Add(KeybindButton(self.pages[0], 6, PlayerKeybind.Up, o - new Vector2(0, y += 40)));
+            c[0].Add(KeybindButton(self.pages[0], 7, PlayerKeybind.Left, o - new Vector2(0, y += 40)));
+            c[0].Add(KeybindButton(self.pages[0], 8, PlayerKeybind.Down, o - new Vector2(0, y += 40)));
+            c[0].Add(KeybindButton(self.pages[0], 9, PlayerKeybind.Right, o - new Vector2(0, y += 40)));
 
-            // --- Preset button ---
-            self.pages[0].subObjects.Add(new SimpleButton(self, self.pages[0], self.Translate("PRESET"), "BIC CUSTOM PRESET", new(self.testButton.pos.x, 140), new(110, 30)));
+            // Add modded buttons
+            
+            int col = 0;
+            int h = 550;
+            string label = "";
+            int p = 0;
+
+            void NewPage()
+            {
+                c.Add(new List<MenuObject>());
+                col = 0;
+                p++;
+            }
+
+            void NewColumn()
+            {
+                col++;
+                if (col > 1) NewPage();
+                y = 0;
+                label = "";
+            }
+
+            NewColumn();
+            for (int i = PlayerKeybind.vanillaKeybindCount; i < keybinds.Count; i++)
+            {
+                if (y + 40 > h) NewColumn();
+
+                if (label != keybinds[i].Mod)
+                {
+                    label = keybinds[i].Mod;
+                    if (y + 65 > h) NewColumn();
+                    c[p].Add(GroupLabel(label.ToUpper(), o - new Vector2((col % 2 == 0) ? 0 : -columnWidth, y += 25)));
+                }
+
+                c[p].Add(KeybindButton(self.pages[0], i, keybinds[i], o - new Vector2((col % 2 == 0) ? 0 : -columnWidth, y += 40)));
+            }
+            keybindPages = c;
+
+            s.AddRange(c[0]);
+            for (int i = 1; i < c.Count; i++)
+                foreach (MenuObject obj in c[i])
+                {
+                    s.Add(obj);
+                    if (obj is MenuLabel menuLabel) { menuLabel.label.isVisible = false; }
+                    else if (obj is InputSelectButton button) button.Hide();
+                }
+            pageNum = 0;
+
+            // Scroll buttons
+            if (c.Count > 1)
+            {
+                prevButton = new BigArrowButton(self, self.pages[0], "PREV", new Vector2(o.x - 150, o.y - 275), -1);
+                self.pages[0].subObjects.Add(prevButton);
+                prevButton.GetButtonBehavior.greyedOut = true;
+                nextButton = new BigArrowButton(self, self.pages[0], "NEXT", new Vector2(o.x + 210, o.y - 275), 1);
+                self.pages[0].subObjects.Add(nextButton);
+            }
+
+            // Preset button 
+            self.pages[0].subObjects.Add(new SimpleButton(self, self.pages[0], self.Translate("PRESET"), "BIC CUSTOM PRESET", new(self.testButton.pos.x, self.testButton.pos.y + 40), new(110, 30)));
         }
 
-        // helper function that insures the buttons are stored in the correct order.
-        private static void AddKeybindButton(Page page, int index, PlayerKeybind pk, bool compact, Vector2 pos)
+        private static void SwitchPage(InputOptionsMenu menu, int index)
         {
-            InputSelectButton button = new InputSelectButton(page, index, pk, compact, pos);
-            keybindButtons[index] = button;
-            page.subObjects.Add(button);
+            if (index == pageNum || index >= keybindPages.Count || index < 0) return;
+
+            if(pageNum > -1)
+                foreach (MenuObject obj in keybindPages[pageNum])
+                {
+                    if (obj is MenuLabel menuLabel) { menuLabel.label.isVisible = false; }
+                    else if (obj is InputSelectButton button) button.Hide();
+                }
+            foreach (MenuObject obj in keybindPages[index])
+            {
+                if (obj is MenuLabel menuLabel) { menuLabel.label.isVisible = true; }
+                else if (obj is InputSelectButton button) button.Show();
+            }
+            pageNum = index;
+
+            if (pageNum == 0) prevButton.GetButtonBehavior.greyedOut = true;
+            else prevButton.GetButtonBehavior.greyedOut = false;
+            if (pageNum == keybindPages.Count - 1) nextButton.GetButtonBehavior.greyedOut = true;
+            else nextButton.GetButtonBehavior.greyedOut = false;
         }
 
         private static void FixVanillaButtons(On.Menu.InputOptionsMenu.orig_ctor orig, InputOptionsMenu self, ProcessManager manager)
@@ -282,8 +351,11 @@ namespace ImprovedInput
                 c.Goto(start);
                 c.RemoveRange(end - start);
 
+                // Replaced access with the appropriate modded InputSelectButton
                 c.Emit(OpCodes.Ldarg_0);
-                c.EmitDelegate(FixSelectedObject);
+                c.EmitDelegate((InputOptionsMenu self) => {
+                    self.selectedObject = keybindButtons[self.settingInput.Value.y];
+                });
 
                 // mouse button assignment 
                 c.GotoNext(
@@ -326,11 +398,20 @@ namespace ImprovedInput
                 Debug.LogError(ex.Message);
             }
         }
-         
-        // part 2: Replaced access with the appropriate modded InputSelectButton
-        private static void FixSelectedObject(InputOptionsMenu self)
+
+        private static void Update(On.Menu.InputOptionsMenu.orig_Update orig, InputOptionsMenu self)
         {
-            self.selectedObject = keybindButtons[self.settingInput.Value.y];
+            orig(self);
+
+            if (self.floatScrollWheel > 0)
+            {
+                SwitchPage(self, pageNum + 1);
+            }
+            else if (self.floatScrollWheel < 0)
+            {
+                SwitchPage(self, pageNum - 1);
+            }
+            self.floatScrollWheel = 0;
         }
 
         private static void FixMouseMapping(InputOptionsMenu self, int mouseIndex)
@@ -422,7 +503,7 @@ namespace ImprovedInput
         }
 
         // handle loading preset. TODO rewrite
-        private static void LoadPreset(On.Menu.InputOptionsMenu.orig_Singal orig, InputOptionsMenu self, MenuObject sender, string message)
+        private static void Signal(On.Menu.InputOptionsMenu.orig_Singal orig, InputOptionsMenu self, MenuObject sender, string message)
         {
             if (message == "BIC CUSTOM PRESET")
             {
@@ -433,7 +514,7 @@ namespace ImprovedInput
 
                 // load preset keys
                 SaveAndLoadHooks.ClearUnloadedKeys(self.CurrentControlSetup);
-                orig(self, sender, message); 
+                orig(self, sender, message);
                 SaveAndLoadHooks.LoadPresetMappings(self.CurrentControlSetup);
 
                 // TODO revisit this code
@@ -447,6 +528,16 @@ namespace ImprovedInput
                 }
 
 
+            }
+            else if (message == "PREV")
+            {
+                SwitchPage(self, pageNum - 1);
+                self.PlaySound(SoundID.MENU_Checkbox_Uncheck);
+            }
+            else if (message == "NEXT")
+            {
+                SwitchPage(self, pageNum + 1);
+                self.PlaySound(SoundID.MENU_Checkbox_Uncheck);
             }
             else
                 orig(self, sender, message);

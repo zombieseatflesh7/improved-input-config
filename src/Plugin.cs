@@ -16,9 +16,13 @@ using UnityEngine;
 
 namespace ImprovedInput;
 
-[BepInPlugin("com.dual.improved-input-config", "Improved Input Config", "2.0.5")]
+[BepInPlugin(GUID, MOD_NAME, VERSION)]
 sealed class Plugin : BaseUnityPlugin
 {
+    public const string GUID = "com.dual.improved-input-config";
+    public const string MOD_NAME = "Improved Input Config";
+    public const string VERSION = "2.0.6";
+
     public static new BepInEx.Logging.ManualLogSource Logger;
 
     // input update data
@@ -72,7 +76,7 @@ sealed class Plugin : BaseUnityPlugin
     }
 
 
-    // Adding new Input Actions when the game loads (+30), and other init stuff.
+    // Adding new Input Actions when the game loads (+100), and other init stuff.
     private static bool initModdedActions = false;
     internal static List<InputAction> vanillaInputActions;
     private static List<InputAction> UserData_GetActions_Hook(Func<UserData, List<InputAction>> orig, UserData self)
@@ -84,8 +88,8 @@ sealed class Plugin : BaseUnityPlugin
 
             Logger.LogInfo("Adding new Input Actions");
 
-            // add new actions (+30)
-            for(int i = 0; i < 30; i++)
+            // add new actions (+100)
+            for(int i = 0; i < 100; i++)
                 self.AddAction(0);
             actions = orig(self);
 

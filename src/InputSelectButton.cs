@@ -1,5 +1,6 @@
 ﻿using Menu;
 using Rewired;
+using Rewired.HID.Drivers;
 using RWCustom;
 using System.Text.RegularExpressions;
 using UnityEngine;
@@ -26,6 +27,7 @@ sealed class InputSelectButton : SimpleButton
     private float recentlyUsedFlash;
     private float lastRecentlyUsedFlash;
     private bool init;
+    private bool hidden;
 
     private Options.ControlSetup.Preset lastControllerType = Options.ControlSetup.Preset.None;
     Options.ControlSetup.Preset ControllerType => ControlSetup.GetActivePreset();
@@ -63,6 +65,24 @@ sealed class InputSelectButton : SimpleButton
             shader = menu.manager.rainWorld.Shaders["VectorCircleFadable"]
         });
         Container.AddChild(arrow = new("keyShiftB"));
+    }
+
+    public void Hide()
+    {
+        if (hidden) return;
+        hidden = true;
+        page.selectables.Remove(this);
+        pos += new Vector2(10000, 0);
+        lastPos = pos;
+    }
+
+    public void Show()
+    {
+        if (!hidden) return;
+        hidden = false;
+        page.selectables.Add(this);
+        pos -= new Vector2(10000, 0);
+        lastPos = pos;
     }
 
     public override Color MyColor(float timeStacker)
