@@ -1,6 +1,5 @@
 ﻿using Menu;
 using Rewired;
-using Rewired.HID.Drivers;
 using RWCustom;
 using System.Text.RegularExpressions;
 using UnityEngine;
@@ -92,7 +91,7 @@ sealed class InputSelectButton : SimpleButton
         Color color = Color.Lerp(base.MyColor(timeStacker), Menu.Menu.MenuRGB(Menu.Menu.MenuColors.White), t);
 
         // Blink red if conflicting keys on current character
-        if (ConflictsWithAnyOnSamePlayer()) {
+        if (!buttonBehav.greyedOut && ConflictsWithAnyOnSamePlayer()) {
             if (blinkCounter % 30 < 15) {
                 return Color.Lerp(color, Color.red, 0.8f);
             }
@@ -157,7 +156,10 @@ sealed class InputSelectButton : SimpleButton
             filled = Custom.LerpAndTick(filled, 0f, 0.05f, 0.05f);
         }
 
-        if (recentlyUsedGreyedOut --> 0) {
+        if (!InputMenuHooks.IsInputDeviceCurrentlyAvailable(ControlSetup, Gamepad)) {
+            buttonBehav.greyedOut = true;
+        }
+        else if (recentlyUsedGreyedOut --> 0) {
             if (Selected) {
                 buttonBehav.greyedOut = true;
             }
@@ -172,12 +174,16 @@ sealed class InputSelectButton : SimpleButton
         else if (MovementKey) {
             buttonBehav.greyedOut = Gamepad;
         }
+        else
+            buttonBehav.greyedOut = false;
 
         if (!MovementKey && lastGamepad != Gamepad
             || !MovementKey && Gamepad && lastControllerType != ControllerType
-            || !PlayerOneOnly && lastPlayer != Player && !(MovementKey && Gamepad)) {
+            || !PlayerOneOnly && lastPlayer != Player && !(MovementKey && Gamepad))
+        {
             RefreshKeyDisplay();
         }
+
 
         lastControllerType = ControllerType;
         lastPlayer = Player;
@@ -225,8 +231,8 @@ sealed class InputSelectButton : SimpleButton
     public void RefreshKeyDisplay()
     {
         recentlyUsedFlash = Mathf.Max(recentlyUsedFlash, 0.65f);
-
-        bool notGreyed = !(MovementKey && Gamepad || PlayerOneOnly && menu.CurrentControlSetup.index != 0);
+        bool notGreyed = InputMenuHooks.IsInputDeviceCurrentlyAvailable(ControlSetup, Gamepad)
+            && !(MovementKey && Gamepad || PlayerOneOnly && menu.CurrentControlSetup.index != 0);
         if (!notGreyed || Gamepad && ControlSetup.GetActivePreset() == Options.ControlSetup.Preset.None) {
             arrow.alpha = 0;
             currentKey.label.alpha = 1;

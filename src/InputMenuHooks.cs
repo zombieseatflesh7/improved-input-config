@@ -29,7 +29,6 @@ namespace ImprovedInput
             On.Menu.InputOptionsMenu.ctor += FixVanillaButtons;
             IL.Menu.InputOptionsMenu.Update += FixUpdateIL;
             On.Menu.InputOptionsMenu.Update += Update;
-            On.Menu.InputOptionsMenu.SetCurrentlySelectedOfSeries += FixSelection;
             On.Menu.InputOptionsMenu.RefreshInputGreyOut += RefreshButtons;
             On.Menu.InputOptionsMenu.UpdateInfoText += InputOptionsMenu_UpdateInfoText;
             On.Menu.InputOptionsMenu.Singal += Signal;
@@ -121,11 +120,8 @@ namespace ImprovedInput
         private static void AddCustomButtons(InputOptionsMenu self)
         {
             var s = self.pages[0].subObjects;
-            MenuLabel version = new MenuLabel(self, self.pages[0], $"IIC v{Plugin.VERSION}", new Vector2((1366f - self.manager.rainWorld.screenSize.x) / 2f + 20f, self.manager.rainWorld.screenSize.y - 30f), new Vector2(200f, 20f), false);
+            MenuLabel version = new MenuLabel(self, self.pages[0], $"IIC:E v{Plugin.VERSION}", new Vector2((1366f - self.manager.rainWorld.screenSize.x) / 2f + 20f, self.manager.rainWorld.screenSize.y - 30f), new Vector2(200f, 20f), false);
             version.size = new Vector2(version.label.textRect.width, version.size.y);
-            //version.label.anchorX = 0.5f;
-            //version.label.anchorY = 0f;
-            //version.label.color = Menu.Menu.MenuRGB(Menu.Menu.MenuColors.MediumGrey);
             s.Add(version);
 
             // --- Keybind buttons ---
@@ -262,14 +258,6 @@ namespace ImprovedInput
         {
             orig(self, manager);
 
-            foreach (var setup in manager.rainWorld.options.controls)
-            {
-                if (setup.controlPreference == Options.ControlSetup.ControlToUse.ANY)
-                {
-                    setup.UpdateControlPreference(Options.ControlSetup.ControlToUse.KEYBOARD, false);
-                }
-            }
-
             // Remove old buttons
             string keyboard = self.Translate("KEYBOARD");
             string gamepad = self.Translate("GAMEPAD");
@@ -278,8 +266,7 @@ namespace ImprovedInput
             {
                 MenuObject sub = self.pages[0].subObjects[i];
 
-                if (sub == self.deviceButtons[0]
-                    || sub == self.keyboardDefaultsButton
+                if (sub == self.keyboardDefaultsButton
                     || sub == self.gamepadDefaultsButton
                     || sub is InputOptionsMenu.InputSelectButton
                     || sub is MenuLabel label && (label.text == keyboard || label.text == gamepad || self.inputLabels.Contains(label)))
@@ -291,17 +278,6 @@ namespace ImprovedInput
 
             // Prevent self.gamepadDefaultsButton from being selected
             self.xInvCheck.nextSelectable[1] = null;
-
-            // Move keyboard button up
-            self.deviceButtons[1].pos.y += 90;
-            self.deviceButtons[1].lastPos.y += 90;
-
-            // Update player arrow positions after moving keyboard button
-            foreach (InputOptionsMenu.PlayerButton plrButton in self.playerButtons)
-            {
-                plrButton.pointPos = plrButton.IdealPointHeight();
-                plrButton.lastPointPos = plrButton.pointPos;
-            }
 
             self.keyBoardKeysButtons = new InputOptionsMenu.InputSelectButton[0];
             self.gamePadButtonButtons = new InputOptionsMenu.InputSelectButton[0];
@@ -474,14 +450,6 @@ namespace ImprovedInput
                         self.PlaySound(SoundID.MENU_Button_Successfully_Assigned);
                 }
             }
-        }
-
-        private static void FixSelection(On.Menu.InputOptionsMenu.orig_SetCurrentlySelectedOfSeries orig, InputOptionsMenu self, string series, int to)
-        {
-            if (series == "DeviceButtons" && to == 0)
-                to = 1;
-
-            orig(self, series, to);
         }
 
         private static void RefreshButtons(On.Menu.InputOptionsMenu.orig_RefreshInputGreyOut orig, InputOptionsMenu self)
