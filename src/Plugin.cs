@@ -2,12 +2,11 @@
 using HarmonyLib;
 using MonoMod.RuntimeDetour;
 using Rewired;
+using Rewired.Data;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Security.Permissions;
-using Rewired.Data;
-using UnityEngine;
 
 // Allows access to private members
 #pragma warning disable CS0618
@@ -21,9 +20,11 @@ sealed class Plugin : BaseUnityPlugin
 {
     public const string GUID = "com.dual.improved-input-config";
     public const string MOD_NAME = "Improved Input Config";
-    public const string VERSION = "2.0.6";
+    public const string VERSION = "2.0.7";
 
     public static new BepInEx.Logging.ManualLogSource Logger;
+
+    public static bool meadowEnabled = false;
 
     // input update data
     internal sealed class PlayerData
@@ -58,23 +59,12 @@ sealed class Plugin : BaseUnityPlugin
         InputMenuHooks.InitHooks();
         SaveAndLoadHooks.InitHooks();
 
-        //testing
-        //On.RainWorld.Update += UpdateLogInputs;
+        // Mod compat
+        On.RainWorld.PostModsInit += (orig, self) => { 
+            Compat.CheckMods();
+            orig(self);
+        };
     }
-
-    private void UpdateLogInputs(On.RainWorld.orig_Update orig, RainWorld self)
-    {
-        orig(self);
-
-        for (int i = (int)KeyCode.JoystickButton0; i <= (int)KeyCode.JoystickButton19; i++)
-        {
-            if (Input.GetKeyDown((KeyCode)i))
-            {
-                Logger.LogInfo((KeyCode)i);
-            }
-        }
-    }
-
 
     // Adding new Input Actions when the game loads (+100), and other init stuff.
     private static bool initModdedActions = false;
@@ -108,6 +98,7 @@ sealed class Plugin : BaseUnityPlugin
         CustomInputExt.historyLocked = true;
 
         PlayerData data = players.GetValue(self, _ => new());
+        bool blockInput = Compat.MeadowBlockInput; // Rain Meadow chat compat
 
         // Age input.
         for (int i = data.input.Length - 1; i > 0; i--) {
@@ -129,7 +120,8 @@ sealed class Plugin : BaseUnityPlugin
 
         // Assign inputs!
         data.rawInput[0] = CustomInput.GetRawInput(playerNumber);
-        if (self.stun == 0 && !self.dead && self.controller == null && self.AI == null) {
+        if (self.stun == 0 && !self.dead && self.controller == null && self.AI == null && !blockInput) 
+        {
             data.input[0] = data.rawInput[0].Clone();
         }
         else {

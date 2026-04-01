@@ -7,14 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="../lib/*.dll" Publicize="true">
+    <Reference Include="../lib/*.dll">
       <Private>false</Private>
     </Reference>
   </ItemGroup>
-
-	<ItemGroup>
-		<PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.2" PrivateAssets="all" />
-    </ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent" Condition="Exists('$(RainWorldDir)')">
 		<ItemGroup>
