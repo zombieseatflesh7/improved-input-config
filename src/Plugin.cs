@@ -20,7 +20,7 @@ sealed class Plugin : BaseUnityPlugin
 {
     public const string GUID = "com.dual.improved-input-config";
     public const string MOD_NAME = "Improved Input Config";
-    public const string VERSION = "2.0.7";
+    public const string VERSION = "2.0.8";
 
     public static new BepInEx.Logging.ManualLogSource Logger;
 
@@ -144,7 +144,8 @@ sealed class Plugin : BaseUnityPlugin
     private void UpdateNoInputCounter(On.Player.orig_UpdateMSC orig, Player self)
     {
         PlayerData data = players.GetValue(self, _ => new());
-        if (data.input[0].AnyPressed) {
+        foreach (PlayerKeybind key in PlayerKeybind.keybinds)
+        if (key.Reset_touchedNoInputCounter && data.input[0][key]) {
             self.touchedNoInputCounter = 0;
         }
         orig(self);

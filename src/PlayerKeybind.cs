@@ -51,7 +51,7 @@ public sealed class PlayerKeybind
     // Don't move these. The indices matter for the input menu. These will always be called before any other mods, because calling "Register" will load this class, which initializes these.
 
     /// <summary>The PAUSE button. Usually ignored for anyone but the first player.</summary>
-    public static readonly PlayerKeybind Pause = new("vanilla:pause", "Vanilla", "Pause", 5);
+    public static readonly PlayerKeybind Pause = new("vanilla:pause", "Vanilla", "Pause", 5) { Reset_touchedNoInputCounter = false };
 
     /// <summary>The GRAB button.</summary>
     public static readonly PlayerKeybind Grab = new("vanilla:grab", "Vanilla", "Grab", 3);
@@ -62,7 +62,7 @@ public sealed class PlayerKeybind
     /// <summary>The SPECIAL button.</summary>
     public static readonly PlayerKeybind Special = new("vanilla:special", "Vanilla", "Special", 34);
     /// <summary>The MAP button.</summary>
-    public static readonly PlayerKeybind Map = new("vanilla:map", "Vanilla", "Map", 11);
+    public static readonly PlayerKeybind Map = new("vanilla:map", "Vanilla", "Map", 11) { Reset_touchedNoInputCounter = false };
 
     /// <summary>The UP button. Unconfigurable for controllers.</summary>
     public static readonly PlayerKeybind Up = new("vanilla:up", "Vanilla", "Up", 2, 7);
@@ -195,6 +195,10 @@ public sealed class PlayerKeybind
     public bool MapSuppressed { get; set; } = true;
     /// <summary>If true, sleeping suppresses the keybind.</summary>
     public bool SleepSuppressed { get; set; } = true;
+    /// <summary>if true, using this keybind will reset the Player.touchedNoInputCounter. This affects sleeping in shelters, gates, and some other stuff.</summary>
+    /// <remarks>Added in IIC:E v2.0.8</remarks>
+    public bool Reset_touchedNoInputCounter { get; set; } = true;
+
     /// <summary>If true, the keybind will not be configurable through the Input Settings screen.</summary>
     public bool HideConfig { get; set; } = false;
     /// <summary>If true, the conflict warning will be hidden when this key conflicts with the given key.</summary>
